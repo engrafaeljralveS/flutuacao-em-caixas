@@ -1,0 +1,1647 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Flutuação em Caixas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: painel de dados à esquerda; à direita veredito, seção transversal e memória de cálculo, como uma prancha de engenharia. */
+:root {
+  --bg: #e9edee;
+  --surface: #f8faf9;
+  --field: #ffffff;
+  --ink: #1b2830;
+  --muted: #566872;
+  --line: #c5cfd3;
+  --accent: #1d5f8a;
+  --accent-ink: #ffffff;
+  --concrete: #b9c3c8;
+  --concrete-line: #6c7a82;
+  --soil: #d6bd94;
+  --soil-dot: #a88a5c;
+  --water: #2f86c0;
+  --ok: #1b7a4b;
+  --ok-bg: #dcefe4;
+  --bad: #b0372b;
+  --bad-bg: #f6dfdb;
+  --warn: #7d5208;
+  --warn-bg: #f5ead3;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10171b; --surface: #182126; --field: #0f1519; --ink: #e2e9ec; --muted: #8d9ea8; --line: #2b3841;
+    --accent: #6db3df; --accent-ink: #0b1a24; --concrete: #55646c; --concrete-line: #9fb0b9;
+    --soil: #5e4a2f; --soil-dot: #8b6f46; --water: #4aa3dc;
+    --ok: #58c690; --ok-bg: #17382a; --bad: #f0806f; --bad-bg: #3d1f1b; --warn: #e0b25a; --warn-bg: #3a2e15;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10171b; --surface: #182126; --field: #0f1519; --ink: #e2e9ec; --muted: #8d9ea8; --line: #2b3841;
+  --accent: #6db3df; --accent-ink: #0b1a24; --concrete: #55646c; --concrete-line: #9fb0b9;
+  --soil: #5e4a2f; --soil-dot: #8b6f46; --water: #4aa3dc;
+  --ok: #58c690; --ok-bg: #17382a; --bad: #f0806f; --bad-bg: #3d1f1b; --warn: #e0b25a; --warn-bg: #3a2e15;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 16px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(34px, 5vw, 48px); line-height: 1; margin: 0 0 6px; letter-spacing: .01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 70ch; }
+.notice { margin: 0; padding: 9px 12px; background: var(--warn-bg); color: var(--warn); border-radius: 4px; font-size: 13.5px; }
+.app { display: grid; grid-template-columns: minmax(300px, 350px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.inputs { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 14px; font-size: 13px; }
+.results { display: grid; gap: 20px; min-width: 0; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 22px; letter-spacing: .02em; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
+h2 .n { color: var(--accent); font-family: var(--f-mono); font-size: 14px; font-weight: 500; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { flex: 1; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+.field label sub { font-size: 10px; }
+.inp { display: flex; border: 1px solid var(--line); background: var(--field); border-radius: 4px; }
+.inp:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inp input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); padding: 7px 8px; font: 500 14px var(--f-mono); text-align: right; outline: none; }
+.inp .u { padding: 7px 8px; color: var(--muted); font-size: 12px; border-left: 1px solid var(--line); white-space: nowrap; display: flex; align-items: center; }
+.field.bad .inp { border-color: var(--bad); }
+.field .err { color: var(--bad); font-size: 12px; margin: 0; }
+.field .hint { color: var(--muted); font-size: 12px; margin: 0; }
+.field.wide { grid-column: 1 / -1; }
+details.prem { border-top: 1px solid var(--line); padding-top: 12px; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details[open] summary { margin-bottom: 12px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); margin-top: 12px; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+button { font: inherit; cursor: pointer; }
+.btn { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 12px; font-size: 13.5px; font-weight: 500; }
+.btn:hover { background: var(--accent); color: var(--accent-ink); }
+.btn:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stale { color: var(--bad); font-size: 13px; margin: 0; }
+
+/* Painel de dados mais enxuto: títulos, rótulos e campos menores */
+.inputs h2 { font-size: 16px; margin: 0 0 6px; gap: 6px; }
+.inputs h2 .n { font-size: 11.5px; }
+.inputs .grid2 { gap: 7px 8px; }
+.inputs .field { gap: 3px; }
+.inputs .field label { font-size: 11.5px; line-height: 1.25; }
+.inputs .inp input { padding: 4px 7px; font-size: 12.5px; }
+.inputs .inp .u { padding: 4px 6px; font-size: 10.5px; }
+.inputs .field .hint, .inputs .field .err { font-size: 10.5px; line-height: 1.3; }
+.inputs summary { font-size: 13px; }
+.inputs .check { font-size: 11.5px; margin-top: 8px; }
+.inputs .btn { padding: 5px 10px; font-size: 12.5px; }
+.memo { margin-top: 10px; }
+.memo .gnote:empty { display: none; }
+.inputs .stale { font-size: 12px; }
+/* V1.3: painel organizado em subgrupos com colunas */
+.inputs section + section { border-top: 1px solid var(--line); padding-top: 12px; }
+.groups { display: grid; }
+.grp { display: grid; gap: 6px; padding: 8px 0; }
+.grp:first-child { padding-top: 0; }
+.grp + .grp { border-top: 1px dashed var(--line); }
+.gt { margin: 0; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.gcols { display: grid; gap: 8px; }
+.gcols.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gcols.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gnote { margin: 0; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+.gnote sub { font-size: 8px; }
+.verdicts, .calcgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.calcstage { min-width: 0; }
+.calcstage h3 { font-family: var(--f-display); font-weight: 600; font-size: 19px; letter-spacing: .02em; margin: 0 0 6px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.stage-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.stage h3 { font-family: var(--f-display); font-weight: 600; font-size: 22px; margin: 0; letter-spacing: .02em; }
+.stage .tag { color: var(--muted); font-size: 12.5px; margin: 0; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.neutral { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.fs { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fs .big { font-family: var(--f-mono); font-weight: 500; font-size: 44px; line-height: 1; }
+.fs .big.ok { color: var(--ok); }
+.fs .big.bad { color: var(--bad); }
+.fs .lab { color: var(--muted); font-size: 13px; }
+.calc { font-size: 13px; color: var(--muted); display: grid; gap: 2px; margin: 0; }
+.calc code { font-family: var(--f-mono); color: var(--ink); font-size: 12.5px; }
+.msg { margin: 0; font-size: 13px; color: var(--muted); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.l, th.l { text-align: left; }
+td.num { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+tr.sub td { color: var(--muted); font-size: 12.5px; }
+tr.sub td:first-child { padding-left: 22px; }
+tr.off td { color: var(--muted); }
+tr.total td { font-weight: 600; border-top: 2px solid var(--ink); border-bottom: 0; }
+tr.grp td { background: var(--bg); font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.yes { color: var(--ok); font-weight: 600; }
+.no { color: var(--muted); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.panel-head h2 { margin: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { background: transparent; color: var(--ink); border: 0; padding: 6px 12px; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.figscroll { overflow-x: auto; }
+.figscroll svg { display: block; width: 100%; min-width: 660px; height: auto; margin: 0 auto; }
+figcaption { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 14px; border: 1px solid var(--concrete-line); display: inline-block; }
+.sum { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 28px; margin: 0; }
+.sum div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.sum dt { color: var(--muted); font-size: 13.5px; }
+.sum dd { margin: 0; font-family: var(--f-mono); font-size: 13px; text-align: right; }
+.sum h3 { grid-column: 1 / -1; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 2px; }
+.subarea { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.subarea h3 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+.subarea .eq { margin: 0; font-family: var(--f-mono); font-size: 13px; }
+.warns { display: grid; gap: 6px; }
+.warns p { margin: 0; padding: 8px 12px; background: var(--warn-bg); color: var(--warn); border-radius: 4px; font-size: 13.5px; }
+.lim { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; display: grid; gap: 4px; }
+.halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* V1.6: abas e aba Armaduras */
+tr.grp { display: table-row; }
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); flex-wrap: wrap; }
+.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 8px 16px 7px; font: 600 20px var(--f-display); letter-spacing: .03em; color: var(--muted); }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.verdicts.v3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.verdicts.v3 .fs .big { font-size: 38px; }
+.src { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0 0 8px; font-size: 11.5px; }
+.src dt { color: var(--muted); }
+.src dd { margin: 0; text-align: right; font-family: var(--f-mono); font-size: 11px; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.armt td, .armt th { padding: 5px 6px; }
+.armt tr.units th { font-size: 10.5px; text-transform: none; letter-spacing: 0; padding-top: 0; }
+.armt tr.pair td { border-bottom-color: var(--ink); border-bottom-width: 1px; }
+.barsel { display: flex; gap: 4px; align-items: center; justify-content: flex-end; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.barsel select { font: 500 12.5px var(--f-mono); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 3px 2px; }
+.barsel select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tagman { font-size: 10.5px; color: var(--accent); font-weight: 600; }
+.gmin { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; }
+td .pill { font-size: 11.5px; padding: 2px 8px; }
+.armfig svg { display: block; width: 100%; max-width: 760px; min-width: 520px; height: auto; margin: 0 auto; }
+@media (max-width: 720px) { .verdicts.v3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .inputs { position: static; max-height: none; }
+}
+@media (max-width: 720px) {
+  .verdicts, .calcgrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Aplicativo v1.0 · base: roteiro v1.1 · verificação preliminar</p>
+    <h1>Flutuação em Caixas</h1>
+    <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e dimensionamento das armaduras das lajes e paredes.</p>
+  </header>
+  <p class="notice">Cálculo preliminar. Coeficientes, hipóteses hidráulicas e parcelas resistentes precisam ser validados antes de qualquer uso em projeto executivo.</p>
+
+  <nav class="tabs" role="tablist" aria-label="Etapas do cálculo">
+    <button type="button" role="tab" id="tb-flut" aria-controls="tab-flut" aria-selected="true">Flutuação</button>
+    <button type="button" role="tab" id="tb-arm" aria-controls="tab-arm" aria-selected="false">Armaduras</button>
+  </nav>
+
+  <div id="tab-flut" role="tabpanel" aria-labelledby="tb-flut">
+  <div class="app">
+    <aside class="inputs" aria-label="Dados de entrada">
+      <section id="sec-geo"><h2><span class="n">1</span>Geometria da caixa</h2><div class="groups" id="f-geo"></div></section>
+      <section id="sec-solo"><h2><span class="n">2</span>Solo</h2><div class="groups" id="f-solo"></div></section>
+      <section id="sec-agua"><h2><span class="n">3</span>Lençol freático</h2><div class="groups" id="f-agua"></div></section>
+      <details class="prem">
+        <summary>Premissas do modelo</summary>
+        <div class="groups" id="f-prem"></div>
+        <label class="check"><input type="checkbox" id="abaConstr" checked><span>Considerar o solo sobre a aba na etapa construtiva (roteiro 7.1: "quando existente e aplicável").</span></label>
+        <div class="memo"><button class="btn" id="memorial" type="button">Gerar memorial de cálculo compactado (Word)</button><p class="gnote" id="memmsg" role="status"></p></div>
+      </details>
+      <p class="stale" id="stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
+      <div><button class="btn" id="reset" type="button">Restaurar valores iniciais</button></div>
+    </aside>
+
+    <main class="results">
+      <div class="warns" id="warns" aria-live="polite"></div>
+      <section aria-label="Verificação contra flutuação"><div class="verdicts" id="verdicts"></div></section>
+
+      <section class="panel" aria-label="Seção transversal">
+        <div class="panel-head">
+          <h2><span class="n">7</span>Seção transversal</h2>
+          <div class="seg" role="group" aria-label="Etapa exibida no desenho">
+            <button type="button" id="st-oper" aria-pressed="true">Operação</button>
+            <button type="button" id="st-constr" aria-pressed="false">Construtiva</button>
+          </div>
+        </div>
+        <figure style="margin:0">
+          <div class="figscroll" id="fig"></div>
+          <figcaption id="figcap"></figcaption>
+        </figure>
+        <ul class="legend">
+          <li><span class="sw" style="background:var(--concrete)"></span>Concreto</li>
+          <li><span class="sw" style="background:var(--soil)"></span>Solo</li>
+          <li><span class="sw" style="background:var(--water);opacity:.55"></span>Solo abaixo do nível d'água</li>
+          <li><span class="sw" style="background:var(--soil-dot)"></span>Empuxo efetivo do solo</li>
+          <li><span class="sw" style="background:var(--water)"></span>Pressão da água</li>
+        </ul>
+      </section>
+
+      <section class="panel" aria-label="Cálculo da verificação">
+        <h2><span class="n">5</span>Cálculo da verificação</h2>
+        <div class="calcgrid" id="calc"></div>
+      </section>
+
+      <section class="panel" aria-label="Pesos">
+        <h2><span class="n">4</span>Volumes e pesos</h2>
+        <div class="tablewrap" id="weights"></div>
+      </section>
+
+      <section class="panel" aria-label="Resumo geométrico">
+        <h2><span class="n">6</span>Resumo geométrico</h2>
+        <dl class="sum" id="summary"></dl>
+      </section>
+
+      <details class="panel">
+        <summary>Limitações desta versão</summary>
+        <ul class="lim">
+          <li>O dimensionamento das armaduras das lajes e paredes está na aba Armaduras.</li>
+          <li>Sem verificação de deslizamento ou tombamento.</li>
+          <li>Sem sobrecargas no terreno ou sobre a laje de topo (o valor de 4 kN/m² fica para etapa posterior).</li>
+          <li>Sem água no interior da caixa, drenagem, alívio de pressão ou escoamento transitório.</li>
+          <li>Sem atrito lateral nem resistência passiva do solo.</li>
+          <li>A aba inferior não entra na área de subpressão: A = B<sub>ext</sub> × L<sub>ext</sub>.</li>
+          <li>O desenho explica as premissas e não é resultado de dimensionamento.</li>
+        </ul>
+      </details>
+    </main>
+  </div>
+  </div>
+
+  <div id="tab-arm" role="tabpanel" aria-labelledby="tb-arm" hidden>
+  <div class="app">
+    <aside class="inputs" aria-label="Dados do dimensionamento">
+      <section><h2><span class="n">A</span>Dados da caixa</h2>
+        <dl class="src" id="arm-src"></dl>
+        <p class="gnote">Geometria, solo e nível d'água vêm da aba Flutuação (etapa de operação, N.A. em z<sub>w</sub>).</p>
+        <div style="margin-top:8px"><button class="btn" id="go-flut" type="button">Editar na aba Flutuação</button></div>
+      </section>
+      <section><h2><span class="n">B</span>Materiais e seção</h2><div class="groups" id="f-am"></div></section>
+      <section><h2><span class="n">C</span>Ações e combinações</h2><div class="groups" id="f-aa"></div></section>
+      <p class="stale" id="arm-stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
+      <div class="btnrow"><button class="btn" id="arm-sug" type="button">Sugerir todas as barras</button><button class="btn" id="arm-reset" type="button">Restaurar valores iniciais</button></div>
+    </aside>
+
+    <main class="results">
+      <div class="warns" id="arm-warns" aria-live="polite"></div>
+      <section aria-label="Resumo do dimensionamento"><div class="verdicts v3" id="arm-verd"></div></section>
+
+      <section class="panel" aria-label="Diagramas de momento">
+        <div class="panel-head">
+          <h2><span class="n">E</span>Momentos fletores de cálculo</h2>
+          <div class="seg" role="group" aria-label="Diagrama exibido">
+            <button type="button" id="av-B" aria-pressed="true">Direção B</button>
+            <button type="button" id="av-L" aria-pressed="false">Direção L</button>
+            <button type="button" id="av-ring" aria-pressed="false">Paredes, horizontal</button>
+          </div>
+        </div>
+        <figure style="margin:0"><div class="figscroll armfig" id="arm-fig"></div><figcaption id="arm-figcap"></figcaption></figure>
+      </section>
+
+      <section class="panel" aria-label="Armaduras">
+        <div class="panel-head"><h2><span class="n">F</span>Armaduras por face</h2></div>
+        <div class="tablewrap" id="arm-table"></div>
+        <p class="msg" style="margin-top:10px">Faixa de 1 m. A<sub>s,nec</sub> = maior entre A<sub>s,calc</sub> e A<sub>s,mín</sub>. As barras sugeridas são a menor área que atende A<sub>s,nec</sub> e w<sub>k,lim</sub>, com ø ≤ h/8 e s ≤ 20 cm. Mude a bitola ou o espaçamento em qualquer linha para adotar outra solução.</p>
+      </section>
+
+      <section class="panel" aria-label="Cortante">
+        <h2><span class="n">G</span>Cortante nas faces dos apoios</h2>
+        <div class="tablewrap" id="arm-shear"></div>
+        <p class="msg" style="margin-top:10px">V<sub>Rd1</sub> = τ<sub>Rd</sub> · k · (1,2 + 40ρ<sub>1</sub>) · b<sub>w</sub> · d, com τ<sub>Rd</sub> = 0,25 f<sub>ctd</sub>, k = 1,6 − d ≥ 1 e ρ<sub>1</sub> da armadura externa adotada (NBR 6118, 19.4.1). A compressão normal (σ<sub>cp</sub>) é desprezada, a favor da segurança.</p>
+      </section>
+
+      <section class="panel" aria-label="Ações">
+        <h2><span class="n">D</span>Ações características</h2>
+        <div class="tablewrap" id="arm-loads"></div>
+      </section>
+
+      <details class="panel">
+        <summary>Método e limitações</summary>
+        <ul class="lim">
+          <li>Pórtico fechado por faixa de 1 m nas direções B e L (lajes e flexão vertical das paredes), pelos eixos dos elementos, sem deslocabilidade (carregamento simétrico). Flexão horizontal das paredes por um anel em planta, com a pressão da face superior da laje de fundo.</li>
+          <li>Sem repartição, cada faixa recebe a carga inteira nas duas direções (a favor da segurança). Com repartição, usa-se a grelha simplificada k = l<sub>y</sub><sup>4</sup> ÷ (l<sub>x</sub><sup>4</sup> + l<sub>y</sub><sup>4</sup>), que não substitui o cálculo de placas.</li>
+          <li>Envoltória ELU: permanentes com γ = 1,0 ou γ<sub>g</sub> e sobrecarga com 0 ou γ<sub>q</sub>, o que for desfavorável em cada seção. ELS: permanentes + ψ<sub>1</sub> · sobrecarga.</li>
+          <li>Momentos negativos tomados na face dos apoios. Esforços normais desprezados no dimensionamento (compressão nas lajes e paredes, a favor da segurança na flexão).</li>
+          <li>Reação do terreno uniforme sob a laje de fundo. A aba, a abertura e a chaminé da laje de topo não entram no pórtico.</li>
+          <li>Não verifica: etapa construtiva (paredes em balanço antes da laje de topo), caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, ancoragem e detalhamento dos cantos.</li>
+          <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária.</li>
+        </ul>
+      </details>
+    </main>
+  </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Formatação ---------- */
+const fmt = (n, d = 2) => {
+  if (!Number.isFinite(n)) return '—';
+  if (Math.abs(n) < 0.5 * Math.pow(10, -d)) n = 0;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }).replace('-', '−');
+};
+const fz = n => (Math.abs(n) < 0.005 ? '0,00' : (n > 0 ? '+' : '') + fmt(n, 2));
+
+/* ---------- Cálculo (funções puras) ---------- */
+const Calc = (function () {
+  // submerged = true: a fração saturada entra com o peso submerso (γsat − γw), sem o peso da água.
+  function layer(p, zBottom, area, submerged) {
+    const t = Math.max(0, 0 - zBottom);
+    const satTop = Math.min(0, p.zw);
+    const sat = Math.min(t, Math.max(0, satTop - zBottom));
+    const dry = t - sat;
+    const gSat = submerged ? Math.max(0, p.gsat - p.gw) : p.gsat;
+    const Wdry = area * dry * p.gd, Wsat = area * sat * gSat;
+    return { area, t, dry, sat, gSat, Vdry: area * dry, Vsat: area * sat, Wdry, Wsat, W: Wdry + Wsat };
+  }
+
+  function lateral(p, zA, zB) {
+    const Ka = Math.pow(Math.tan((45 - p.phi / 2) * Math.PI / 180), 2);
+    const sKa = Math.sqrt(Ka);
+    const gp = Math.max(0, p.gsat - p.gw);
+    const dw = p.zw < 0 ? -p.zw : 0;
+    const sv = d => (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw));
+    const sh = d => Math.max(0, Ka * sv(d) - 2 * p.c * sKa);
+    const uw = d => p.gw * Math.max(0, d - dw);
+    const dA = -zA, dB = -zB;
+    if (!(dB > dA)) return { Ka, pts: [] };
+    const bps = new Set([dA, dB]);
+    if (dw > dA && dw < dB) bps.add(dw);
+    if (p.c > 0 && Ka > 0) {
+      const svc = 2 * p.c / sKa;
+      let dc = null;
+      if (svc <= p.gd * dw) dc = svc / p.gd;
+      else if (gp > 0) dc = dw + (svc - p.gd * dw) / gp;
+      if (dc != null && dc > dA && dc < dB) bps.add(dc);
+    }
+    const ds = [...bps].sort((a, b) => a - b);
+    return { Ka, pts: ds.map(d => ({ z: -d, sig: sh(d), u: uw(d) })) };
+  }
+
+  function compute(p) {
+    const Bext = p.B + 2 * p.ep, Lext = p.L + 2 * p.ep;
+    const Binf = Bext + 2 * p.ba, Linf = Lext + 2 * p.ba;
+    const Htot = p.es + p.H + p.ei;
+    const z = {
+      topTop: p.zs,
+      topBot: p.zs - p.es,
+      botTop: p.zs - p.es - p.H,
+      base: p.zs - p.es - p.H - p.ei
+    };
+    // Convenção: laje inferior ocupa Binf x Linf; paredes ocupam o anel entre as faces
+    // internas e externas, só na altura livre H; laje de topo ocupa Bext x Lext.
+    const ringArea = Bext * Lext - p.B * p.L;
+    const infArea = Binf * Linf;
+    const supArea = Bext * Lext;
+    // Abertura na laje de topo (fase final): descontada do concreto da laje de topo.
+    const openArea = Math.min(Math.max(p.bo, 0), Bext) * Math.min(Math.max(p.lo, 0), Lext);
+    const supNet = supArea - openArea;
+    const vol = { walls: ringArea * p.H, inf: infArea * p.ei, sup: supNet * p.es, ringArea, infArea, supArea, openArea, supNet };
+    const Wp = vol.walls * p.gc, Wi = vol.inf * p.gc, Ws = vol.sup * p.gc;
+    const Wopen = openArea * p.es * p.gc;
+    // Chaminé: paredes de espessura ep em volta da abertura, da face superior da laje de topo
+    // até o terreno (z = 0). A abertura é o vão livre interno da chaminé.
+    const boE = Math.min(Math.max(p.bo, 0), Bext), loE = Math.min(Math.max(p.lo, 0), Lext);
+    const chimH = (p.chamine && openArea > 0) ? Math.max(0, 0 - z.topTop) : 0;
+    const chimOuter = (boE + 2 * p.ep) * (loE + 2 * p.ep);
+    const chimRing = chimH > 0 ? chimOuter - boE * loE : 0;
+    vol.chimH = chimH; vol.chimOuter = chimOuter; vol.chimRing = chimRing; vol.chim = chimRing * chimH; vol.boE = boE; vol.loE = loE;
+    const Wchim = vol.chim * p.gc;
+    // Solo sobre a laje de topo: sem a área da chaminé (ou da abertura, se não houver chaminé);
+    // a parcela saturada entra com γsat − γw.
+    const soilArea = Math.max(0, supArea - (chimH > 0 ? Math.min(chimOuter, supArea) : openArea));
+    vol.soilArea = soilArea;
+    const soloTopo = layer(p, z.topTop, soilArea, true);
+    const soloAba = layer(p, z.botTop, infArea - supArea, true);
+
+    // Subpressão: A = área externa das paredes, sem a aba. Na etapa construtiva, o rebaixo do
+    // lençol (ponteiras) limita o nível d'água à cota zr: vale o menor entre zw e zr.
+    const A = Bext * Lext;
+    const waterAt = zwLevel => { const h = Math.max(0, zwLevel - z.base); const u = p.gw * h; return { zw: zwLevel, h, u, A, U: u * A }; };
+    const sub = waterAt(p.zw);
+    const hasZr = p.zr != null && Number.isFinite(p.zr);
+    const subC = waterAt(hasZr ? Math.min(p.zw, p.zr) : p.zw);
+    subC.rebaixo = hasZr && p.zr < p.zw;
+
+    function stage(oper) {
+      const sb = oper ? sub : subC;
+      const U = sb.U;
+      const parts = [
+        { key: 'paredes', label: 'Peso das paredes', W: Wp, div: p.fc, incl: true },
+        { key: 'inferior', label: 'Peso da laje inferior', W: Wi, div: p.fc, incl: true },
+        { key: 'superior', label: 'Peso da laje de topo', W: Ws, div: p.fc, incl: oper },
+        { key: 'soloAba', label: 'Solo sobre a aba inferior', W: soloAba.W, div: p.fs, incl: oper ? true : !!p.abaConstr },
+        { key: 'soloTopo', label: 'Solo sobre a laje de topo', W: soloTopo.W, div: p.fst, incl: oper }
+      ];
+      if (Wchim > 0) parts.splice(3, 0, { key: 'chamine', label: 'Chaminé da abertura (até o terreno)', W: Wchim, div: p.fc, incl: oper });
+      if (p.wa > 0) parts.push({ key: 'adicional', label: 'Peso adicional (equipamentos, ancoragens)', W: p.wa, div: p.fa, incl: oper });
+      const R = parts.reduce((s, x) => s + (x.incl ? x.W / x.div : 0), 0);
+      const FS = U > 1e-9 ? R / U : null;
+      const status = FS == null ? 'nosub' : (FS > p.fsmin ? 'ok' : 'nok');
+      return { parts, R, FS, status, sub: sb };
+    }
+    return {
+      p, Bext, Lext, Binf, Linf, Htot, z, vol, W: { p: Wp, i: Wi, s: Ws, open: Wopen, chim: Wchim }, soloTopo, soloAba,
+      sub, subC, constr: stage(false), oper: stage(true)
+    };
+  }
+  return { compute, lateral };
+})();
+
+/* ---------- Dimensionamento das armaduras (funções puras) ---------- */
+// Faixa de 1 m. Pórtico fechado nas direções B e L (lajes e flexão vertical das paredes) e anel
+// horizontal na base das paredes (flexão horizontal). Unidades: kN, m; seções em cm.
+const Arm = (function () {
+  const BARS = [8, 10, 12.5, 16, 20];
+  const SPAC = [20, 17.5, 15, 12.5, 10];
+  const barA = phi => Math.PI * Math.pow(phi / 10, 2) / 4;   // cm²
+  const N = 160;
+  const COMP = ['Vg', 'Lg', 'Qv', 'Ql'];                       // vertical perm., lateral perm., sobrecarga vertical, sobrecarga lateral
+  const PERM = [true, true, false, false];
+
+  function mat(p) {
+    const fck = p.fck;
+    const lam = fck <= 50 ? 0.8 : 0.8 - (fck - 50) / 400;
+    const ac = fck <= 50 ? 0.85 : 0.85 * (1 - (fck - 50) / 200);
+    const xlim = fck <= 50 ? 0.45 : 0.35;
+    const fctm = fck <= 50 ? 0.3 * Math.pow(fck, 2 / 3) : 2.12 * Math.log(1 + 0.11 * fck);
+    const Eci = fck <= 50 ? 5600 * Math.sqrt(fck) : 21500 * Math.pow(fck / 10 + 1.25, 1 / 3);
+    const Ecs = Math.min(1, 0.8 + 0.2 * fck / 80) * Eci;
+    const eta1 = p.fyk >= 600 ? 1.4 : (p.fyk <= 250 ? 1.0 : 2.25);
+    return { fck, lam, ac, xlim, fctm, fctksup: 1.3 * fctm, fctd: 0.7 * fctm / p.gmc, Ecs, Es: 210000, eta1,
+      fcd: fck / p.gmc / 10, fyd: p.fyk / p.gms / 10 };
+  }
+
+  // Flexão simples, b = 100 cm. Md em kN·m/m, h e dl em cm. As em cm²/m.
+  function flex(Md, h, dl, P) {
+    const b = 100, d = h - dl, M = Md * 100;
+    if (!(M > 0)) return { As: 0, xi: 0, d, ok: true };
+    const disc = 1 - 2 * M / (P.ac * P.fcd * b * d * d);
+    if (disc < 0) return { As: NaN, xi: Infinity, d, ok: false };
+    const y = 1 - Math.sqrt(disc), xi = y / P.lam;
+    return { As: M / (P.fyd * d * (1 - y / 2)), xi, d, ok: xi <= P.xlim + 1e-9 };
+  }
+  // NBR 6118, 17.3.5.2.1: Md,mín = 0,8 W0 fctk,sup, com ρ ≥ 0,15 %.
+  function asMin(h, dl, P) {
+    const b = 100, W0 = b * h * h / 6, Mdmin = 0.8 * W0 * P.fctksup / 10 / 100;
+    const r = flex(Mdmin, h, dl, P);
+    return { As: Math.max(Number.isFinite(r.As) ? r.As : 0, 0.0015 * b * h), Mdmin };
+  }
+  // Abertura de fissuras (NBR 6118, 17.3.3.2), estádio II, armadura simples. Mser em kN·m/m.
+  function crack(Mser, As, phi, s, h, dl, P) {
+    if (!(Mser > 0) || !(As > 0)) return { wk: 0, w1: 0, w2: 0, sig: 0, x: 0, rho: 0 };
+    const b = 100, d = h - dl, ae = P.Es / P.Ecs;
+    const x = ae * As / b * (-1 + Math.sqrt(1 + 2 * b * d / (ae * As)));
+    const sig = Mser * 100 / (As * (d - x / 3)) * 10;          // MPa
+    const pc = phi / 10;
+    const wb = Math.min(s, 15 * pc), hA = Math.min(dl, 7.5 * pc) + Math.min(7.5 * pc, Math.max(0, d - x));
+    const rho = barA(phi) / (wb * hA);
+    const kk = phi / (12.5 * P.eta1) * sig / P.Es;
+    const w1 = kk * 3 * sig / P.fctm, w2 = kk * (4 / rho + 45);
+    return { wk: Math.min(w1, w2), w1, w2, sig, x, rho, ae };
+  }
+  // Cortante sem armadura transversal (NBR 6118, 19.4.1), σcp = 0. kN/m.
+  function vrd1(As, h, dl, P) {
+    const dm = (h - dl) / 100, rho1 = Math.min(0.02, As / (100 * (h - dl)));
+    const k = Math.max(1, 1.6 - dm);
+    return { V: 0.25 * P.fctd * k * (1.2 + 40 * rho1) * dm * 1000, rho1, k, dm };
+  }
+  // Menor As,ef que atende As,nec e w_k,lim; ø ≤ h/8 e s ≤ mín(20 cm; 2h).
+  function suggest(AsReq, Mser, h, dl, P, wlim) {
+    const smax = Math.min(20, 2 * h), cands = [];
+    BARS.filter(f => f <= h * 10 / 8 + 1e-9).forEach(phi => SPAC.filter(s => s <= smax + 1e-9).forEach(s => {
+      const As = barA(phi) * 100 / s;
+      cands.push({ phi, s, As, wk: crack(Mser, As, phi, s, h, dl, P).wk });
+    }));
+    const okc = cands.filter(c => c.As >= AsReq - 1e-9 && c.wk <= wlim + 1e-9)
+      .sort((a, b) => a.As - b.As || b.s - a.s);
+    if (okc.length) return Object.assign({ found: true }, okc[0]);
+    const all = cands.sort((a, b) => b.As - a.As);
+    return all.length ? Object.assign({ found: false }, all[0]) : { phi: 10, s: 10, As: barA(10) * 10, found: false };
+  }
+
+  // Integração numérica de um elemento biengastado/elástico. w(x) = carga "para baixo" no eixo local.
+  function fem(L, wf) {
+    let a = 0, b = 0; const n = 400, h = L / n;
+    for (let i = 0; i <= n; i++) {
+      const x = i * h, c = (i === 0 || i === n) ? 0.5 : 1, w = wf(x) * c * h;
+      a += w * x * (L - x) * (L - x) / (L * L); b += w * x * x * (L - x) / (L * L);
+    }
+    return { i: -a, j: b };   // momentos de engastamento, horário positivo
+  }
+  // Diagramas com momentos de extremidade Mi, Mj (horário positivo). M positivo = tração na face "inferior" local.
+  function member(L, wf, Mi, Mj) {
+    const xs = [], w = [];
+    for (let i = 0; i <= N; i++) { const x = L * i / N; xs.push(x); w.push(wf(x)); }
+    const h = L / N; let W = 0, S = 0; const Wc = [0], Sc = [0];
+    for (let i = 1; i <= N; i++) { W += (w[i - 1] + w[i]) / 2 * h; S += (w[i - 1] * xs[i - 1] + w[i] * xs[i]) / 2 * h; Wc.push(W); Sc.push(S); }
+    const RA = (W * L - S) / L;
+    return {
+      xs,
+      M: xs.map((x, i) => RA * x - (x * Wc[i] - Sc[i]) + Mi * (1 - x / L) - Mj * x / L),
+      V: xs.map((x, i) => RA - Wc[i] - (Mi + Mj) / L)
+    };
+  }
+  // Pórtico fechado simétrico (deslocabilidade nula): rotações θA (canto superior) e θB (canto inferior).
+  function solveFrame(Ls, Hc, It, Iw, Ib, qt, qb, pl) {
+    const wt = () => qt, wb = () => -qb, ww = y => -pl(y);
+    const Ft = fem(Ls, wt), Fb = fem(Ls, wb), Fw = fem(Hc, ww);
+    const kt = 2 * It / Ls, kb = 2 * Ib / Ls, kw = 2 * Iw / Hc;
+    const a11 = kt + 2 * kw, a12 = kw, a22 = kb + 2 * kw;
+    const r1 = -(Ft.i + Fw.i), r2 = -(Fb.i + Fw.j), det = a11 * a22 - a12 * a12;
+    const tA = (r1 * a22 - a12 * r2) / det, tB = (a11 * r2 - a12 * r1) / det;
+    const MtI = Ft.i + kt * tA, MwI = Fw.i + kw * (2 * tA + tB), MwJ = Fw.j + kw * (2 * tB + tA), MbI = Fb.i + kb * tB;
+    const top = member(Ls, wt, MtI, -MtI), wall = member(Hc, ww, MwI, MwJ), bot = member(Ls, wb, MbI, -MbI);
+    // Convenção de saída: M > 0 traciona a face interna da caixa.
+    wall.M = wall.M.map(v => -v); bot.M = bot.M.map(v => -v);
+    return { top, wall, bot };
+  }
+
+  // Envoltória: cada ação permanente com γ = 1,0 ou γg; cada variável com 0 ou γq, o que for desfavorável.
+  function envelope(comps, G, i0, i1) {
+    const n = comps.length;
+    const at = (i, key) => comps.map(c => c[key][i]);
+    const comb = (vals, sign) => vals.reduce((s, v, k) => s + ((v * sign > 0) ? G.max[k] * v : G.min[k] * v), 0);
+    const ser = (vals, sign) => vals.reduce((s, v, k) => s + (PERM[k] ? v : ((v * sign > 0) ? G.psi * v : 0)), 0);
+    let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
+    for (let i = i0; i <= i1; i++) {
+      const m = at(i, 'M');
+      Mdi = Math.max(Mdi, comb(m, 1)); Mde = Math.max(Mde, -comb(m, -1));
+      Msi = Math.max(Msi, ser(m, 1)); Mse = Math.max(Mse, -ser(m, -1));
+    }
+    [i0, i1].forEach(i => { const v = at(i, 'V'); Vd = Math.max(Vd, Math.abs(comb(v, 1)), Math.abs(comb(v, -1))); });
+    const Mall = comps[0].M.map((_, i) => comps.reduce((s, c, k) => s + G.max[k] * c.M[i], 0));
+    return { Mdi, Mde, Msi, Mse, Vd, Mall, xs: comps[0].xs, i0, i1, n };
+  }
+  const idx = (L, x) => Math.min(N, Math.max(0, x / L * N));
+
+  function compute(m) {
+    const p = m.p, P = mat(p), z = m.z;
+    if (!(p.dl < 100 * Math.min(p.es, p.ei, p.ep))) return { error: 'd′ precisa ser menor que a espessura de todos os elementos.' };
+    const Bc = p.B + p.ep, Lc = p.L + p.ep, Hc = p.H + (p.es + p.ei) / 2;
+    const dw = p.zw < 0 ? -p.zw : 0, gp = Math.max(0, p.gsat - p.gw);
+    const phiR = p.phi * Math.PI / 180;
+    const K = p.k0 ? 1 - Math.sin(phiR) : Math.pow(Math.tan(Math.PI / 4 - phiR / 2), 2);
+    const cTerm = p.k0 ? 0 : 2 * p.c * Math.sqrt(K);
+    const sv = d => (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw));          // tensão vertical efetiva
+    const svT = d => (d <= dw ? p.gd * d : p.gd * dw + p.gsat * (d - dw));     // tensão vertical total
+    const uw = d => p.gw * Math.max(0, d - dw);
+    const sh = d => Math.max(0, K * sv(d) - cTerm);
+    const pg = d => sh(d) + uw(d);
+    const pqL = K * p.q;
+
+    // Cargas verticais (kN/m²)
+    const cover = Math.max(0, -z.topTop);
+    const qtSelf = p.gc * p.es, qtSoil = svT(cover), qtg = qtSelf + qtSoil;
+    const wallsW = p.gc * p.ep * Hc * 2 * (Bc + Lc) / (Bc * Lc);
+    const qbEq = qtg + wallsW;
+    const uBase = uw(-z.base), qbWat = uBase - p.gc * p.ei;
+    const waterGov = qbWat > qbEq;
+    const qbg = Math.max(qbEq, qbWat);
+
+    // Repartição entre direções (opcional)
+    const L4 = x => Math.pow(x, 4);
+    const ksB = p.split ? L4(Lc) / (L4(Bc) + L4(Lc)) : 1, ksL = p.split ? L4(Bc) / (L4(Bc) + L4(Lc)) : 1;
+    const kvLong = p.split ? L4(Lc) / (L4(Lc) + L4(Hc)) : 1, kvShort = p.split ? L4(Bc) / (L4(Bc) + L4(Hc)) : 1;
+    const khLong = p.split ? 1 - kvLong : 1, khShort = p.split ? 1 - kvShort : 1;
+
+    const It = Math.pow(p.es, 3) / 12, Ib = Math.pow(p.ei, 3) / 12, Iw = Math.pow(p.ep, 3) / 12;
+    const dA = -(z.topTop - p.es / 2), dB = dA + Hc;
+    const G = { min: [1, 1, 0, 0], max: [p.gg, p.gg, p.gq, p.gq], psi: p.psi1 };
+
+    function frame(Ls, ks, kv) {
+      const loads = [
+        { qt: qtg * ks, qb: qbg * ks, pl: () => 0 },
+        { qt: 0, qb: 0, pl: y => kv * pg(dA + y) },
+        { qt: p.q * ks, qb: p.q * ks, pl: () => 0 },
+        { qt: 0, qb: 0, pl: () => kv * pqL }
+      ];
+      const sol = loads.map(l => solveFrame(Ls, Hc, It, Iw, Ib, l.qt, l.qb, l.pl));
+      const fs = idx(Ls, p.ep / 2), fe = idx(Ls, Ls - p.ep / 2);
+      const ws = idx(Hc, p.es / 2), we = idx(Hc, Hc - p.ei / 2);
+      return {
+        Ls, Hc, loads,
+        top: envelope(sol.map(s => s.top), G, Math.ceil(fs), Math.floor(fe)),
+        wall: envelope(sol.map(s => s.wall), G, Math.ceil(ws), Math.floor(we)),
+        bot: envelope(sol.map(s => s.bot), G, Math.ceil(fs), Math.floor(fe))
+      };
+    }
+    const fB = frame(Bc, ksB, kvLong), fL = frame(Lc, ksL, kvShort);
+
+    // Anel horizontal na cota da face superior da laje inferior (maior pressão no vão livre da parede)
+    const dRing = -z.botTop;
+    const pRing = [0, pg(dRing), 0, pqL];
+    function ring() {
+      const mk = (L, kh, other, khO) => pRing.map(pc => {
+        const pa = kh * pc, pb = khO * pc;
+        const Mc = (L === Lc ? (pa * Lc * Lc * Lc + pb * Bc * Bc * Bc) : (pb * Lc * Lc * Lc + pa * Bc * Bc * Bc)) / (12 * (Lc + Bc));
+        const xs = [], M = [], V = [];
+        for (let i = 0; i <= N; i++) { const x = L * i / N; xs.push(x); M.push(pa * x * (L - x) / 2 - Mc); V.push(pa * (L / 2 - x)); }
+        return { xs, M, V };
+      });
+      const lo = c => Math.ceil(idx(c, p.ep / 2)), hi = c => Math.floor(idx(c, c - p.ep / 2));
+      return {
+        Lc, Bc, d: dRing,
+        long: envelope(mk(Lc, khLong, Bc, khShort), G, lo(Lc), hi(Lc)),
+        short: envelope(mk(Bc, khShort, Lc, khLong), G, lo(Bc), hi(Bc))
+      };
+    }
+    const rg = ring();
+
+    // Posições de armadura
+    const F = { top: ['inferior (interna)', 'superior (externa)'], bot: ['superior (interna)', 'inferior (externa)'], wall: ['interna', 'externa'] };
+    const groups = [
+      { key: 'top', name: 'Laje de topo', h: p.es, items: [['top-B', 'Paralela a B', fB.top, F.top], ['top-L', 'Paralela a L', fL.top, F.top]] },
+      { key: 'bot', name: 'Laje de fundo', h: p.ei, items: [['bot-B', 'Paralela a B', fB.bot, F.bot], ['bot-L', 'Paralela a L', fL.bot, F.bot]] },
+      { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, items: [['wl-v', 'Vertical', fB.wall, F.wall], ['wl-h', 'Horizontal', rg.long, F.wall]] },
+      { key: 'ws', name: 'Paredes curtas (ao longo de B)', h: p.ep, items: [['ws-v', 'Vertical', fL.wall, F.wall], ['ws-h', 'Horizontal', rg.short, F.wall]] }
+    ];
+    const hmin = Math.min(p.es, p.ei, p.ep) * 100;
+    const rows = [], shear = [];
+    groups.forEach(g => {
+      const hc = g.h * 100, mn = asMin(hc, p.dl, P);
+      g.items.forEach(([key, dir, e, faces]) => {
+        [['int', e.Mdi, e.Msi, faces[0]], ['ext', e.Mde, e.Mse, faces[1]]].forEach(([side, Md, Ms, face]) => {
+          const r = flex(Md, hc, p.dl, P);
+          const AsReq = Math.max(Number.isFinite(r.As) ? r.As : Infinity, mn.As);
+          rows.push({ key: key + '-' + side, group: g.key, el: g.name, dir, face, side, h: hc, Md, Ms, flex: r,
+            AsCalc: r.As, AsMin: mn.As, AsReq, govMin: !(r.As > mn.As), sug: suggest(AsReq, Ms, hc, p.dl, P, p.wlim) });
+        });
+        shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd: e.Vd, extKey: key + '-ext' });
+      });
+    });
+
+    return {
+      P, K, k0: !!p.k0, Bc, Lc, Hc, dA, dB, dw, cover, qtSelf, qtSoil, qtg, qbEq, qbWat, qbg, wallsW, uBase, waterGov,
+      ksB, ksL, kvLong, kvShort, khLong, khShort, pg, sh, uw, pqL, frames: { B: fB, L: fL }, ring: rg, groups, rows, shear, hmin
+    };
+  }
+
+  function check(row, phi, s, p, P) {
+    const As = barA(phi) * 100 / s;
+    const c = crack(row.Ms, As, phi, s, row.h, p.dl, P);
+    return { As, c, okAs: As >= row.AsReq - 1e-9, okW: c.wk <= p.wlim + 1e-9, okFlex: row.flex.ok };
+  }
+  return { compute, check, flex, asMin, crack, vrd1, suggest, barA, BARS, SPAC, solveFrame, mat };
+})();
+
+/* ---------- Desenho da seção transversal ---------- */
+function drawSection(m, oper) {
+  const p = m.p, z = m.z;
+  const rb = !oper && m.subC.rebaixo;
+  const zwD = rb ? m.subC.zw : p.zw;
+  const sbD = oper ? m.sub : m.subC;
+  const naTxt = rb ? 'N.A. rebaixado' : 'N.A.';
+  const gut = 210, rightPad = 24, top = 34;
+  const spanW = m.Binf + 4.0;
+  let zTop = Math.max(0, z.topTop) + 0.6;
+  if (zwD > 0) zTop = Math.max(zTop, Math.min(zwD, 3) + 0.4);
+  const zBot = z.base - 0.8;
+  const Z = zTop - zBot;
+  const s = Math.min((980 - gut - rightPad) / spanW, 560 / Z, 150);
+  const W = gut + spanW * s + rightPad;
+  const H = top + Z * s + 8;
+  const ox = gut + (spanW / 2) * s;
+  const X = x => ox + x * s;
+  const Y = zz => top + (zTop - zz) * s;
+  const xl = gut, xr = W - rightPad;
+  const o = [];
+  const f1 = n => n.toFixed(1);
+  const op = oper && Math.min(p.bo, m.Bext) > 0 && p.lo > 0;
+  const bo = op ? Math.min(p.bo, m.Bext) : 0;
+  const xc0 = op ? -(m.Bext / 2 + bo / 2) / 2 : 0;
+
+  o.push(`<svg viewBox="0 0 ${f1(W)} ${f1(H)}" role="img" aria-label="Seção transversal esquemática da caixa enterrada, com terreno, lajes, paredes, aba, nível d'água e diagrama de empuxo lateral">`);
+  o.push(`<defs>
+    <pattern id="pc" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" style="fill:var(--concrete)"/><line x1="0" y1="0" x2="0" y2="7" style="stroke:var(--concrete-line);stroke-width:1"/></pattern>
+    <pattern id="ps" width="9" height="9" patternUnits="userSpaceOnUse"><rect width="9" height="9" style="fill:var(--soil)"/><circle cx="2" cy="2" r=".9" style="fill:var(--soil-dot)"/><circle cx="6.5" cy="6" r=".9" style="fill:var(--soil-dot)"/></pattern>
+    <marker id="aI" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--ink)"/></marker>
+    <marker id="aW" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--water)"/></marker>
+  </defs>`);
+
+  // solo e água
+  o.push(`<rect x="${f1(xl)}" y="${f1(Y(0))}" width="${f1(xr - xl)}" height="${f1(Y(zBot) - Y(0))}" fill="url(#ps)"/>`);
+  const hasWater = zwD > zBot;
+  if (hasWater) {
+    const wTop = Math.min(zwD, zTop);
+    o.push(`<rect x="${f1(xl)}" y="${f1(Y(wTop))}" width="${f1(xr - xl)}" height="${f1(Y(zBot) - Y(wTop))}" style="fill:var(--water);opacity:.28"/>`);
+  }
+
+  // vazios (interior e, na etapa construtiva, topo aberto)
+  const voidTop = oper ? z.topBot : Math.max(0, z.topBot);
+  o.push(`<rect x="${f1(X(-p.B / 2))}" y="${f1(Y(voidTop))}" width="${f1(p.B * s)}" height="${f1((voidTop - z.botTop) * s)}" style="fill:var(--surface)"/>`);
+  if (!oper && z.topBot < 0) {
+    o.push(`<rect x="${f1(X(-m.Bext / 2))}" y="${f1(Y(0))}" width="${f1(m.Bext * s)}" height="${f1((0 - z.topBot) * s)}" style="fill:var(--surface)"/>`);
+  }
+  // agua dentro da caixa nao e considerada: nada a desenhar
+
+  // concreto
+  const rect = (x0, x1, zt, zb) => `<rect x="${f1(X(x0))}" y="${f1(Y(zt))}" width="${f1((x1 - x0) * s)}" height="${f1((zt - zb) * s)}" fill="url(#pc)" style="stroke:var(--ink);stroke-width:1.4"/>`;
+  o.push(rect(-m.Binf / 2, m.Binf / 2, z.botTop, z.base));
+  o.push(rect(-m.Bext / 2, -p.B / 2, z.topBot, z.botTop));
+  o.push(rect(p.B / 2, m.Bext / 2, z.topBot, z.botTop));
+  if (oper) o.push(rect(-m.Bext / 2, m.Bext / 2, z.topTop, z.topBot));
+  if (op) {
+    // abertura na laje de topo (centrada); com a opção ligada, também sem solo sobre o furo
+    const yT = Y(Math.max(0, z.topTop));
+    o.push(`<rect x="${f1(X(-bo / 2))}" y="${f1(yT)}" width="${f1(bo * s)}" height="${f1(Y(z.topBot) - yT)}" style="fill:var(--surface)"/>`);
+    [-bo / 2, bo / 2].forEach(xx => o.push(`<line x1="${f1(X(xx))}" y1="${f1(yT)}" x2="${f1(X(xx))}" y2="${f1(Y(z.topBot))}" style="stroke:var(--ink);stroke-width:1.4"/>`));
+    if (m.vol.chimH > 0) {
+      // chaminé: paredes de espessura ep em volta da abertura, da laje de topo até o terreno
+      o.push(rect(-bo / 2 - p.ep, -bo / 2, 0, z.topTop));
+      o.push(rect(bo / 2, bo / 2 + p.ep, 0, z.topTop));
+      o.push(`<text class="halo" x="${f1(X(bo / 2 + p.ep) + 6)}" y="${f1(Y(z.topTop / 2) + 4)}" font-size="11" style="fill:var(--ink)">chaminé</text>`);
+    }
+  }
+
+  // terreno
+  o.push(`<line x1="${f1(xl)}" y1="${f1(Y(0))}" x2="${f1(xr)}" y2="${f1(Y(0))}" style="stroke:var(--ink);stroke-width:2.2"/>`);
+  o.push(`<text class="halo" x="${f1(xr - 4)}" y="${f1(Y(0) - 7)}" text-anchor="end" font-size="12" style="fill:var(--ink)">Terreno  z = 0,00</text>`);
+
+  // nível d'água
+  if (hasWater && zwD <= zTop) {
+    const yw = Y(zwD);
+    o.push(`<line x1="${f1(xl)}" y1="${f1(yw)}" x2="${f1(xr)}" y2="${f1(yw)}" style="stroke:var(--water);stroke-width:1.8;stroke-dasharray:8 5"/>`);
+    o.push(`<polygon points="${f1(xl + 14)},${f1(yw - 9)} ${f1(xl + 26)},${f1(yw - 9)} ${f1(xl + 20)},${f1(yw)}" style="fill:var(--water)"/>`);
+    o.push(`<text class="halo" x="${f1(xl + 34)}" y="${f1(yw - 5)}" font-size="12" style="fill:var(--water);font-weight:600">${naTxt}  z<tspan font-size="9" dy="3">w</tspan><tspan dy="-3"> = ${fz(zwD)} m</tspan></text>`);
+  } else if (!hasWater) {
+    o.push(`<text class="halo" x="${f1(xl + 8)}" y="${f1(Y(zBot) - 8)}" font-size="12" style="fill:var(--water);font-weight:600">${naTxt} em ${fz(zwD)} m (abaixo do desenho)</text>`);
+  }
+
+  // cotas na lateral esquerda
+  const lv = [
+    { z: 0, tag: 'Terreno', ext: null },
+    { z: z.topTop, tag: 'Face sup. laje de topo', ext: -m.Bext / 2 },
+    { z: z.topBot, tag: 'Face inf. laje de topo', ext: -m.Bext / 2 },
+    { z: z.botTop, tag: 'Face sup. laje inferior', ext: -m.Binf / 2 },
+    { z: z.base, tag: 'Face inf. laje inferior', ext: -m.Binf / 2 }
+  ];
+  if (hasWater && zwD <= zTop) lv.push({ z: zwD, tag: naTxt, ext: null, water: true });
+  lv.forEach(l => { l.y = Y(l.z); l.ly = l.y; });
+  lv.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < lv.length; i++) if (lv[i].ly < lv[i - 1].ly + 14) lv[i].ly = lv[i - 1].ly + 14;
+  lv.forEach(l => {
+    if (l.ext != null) o.push(`<line x1="${f1(gut - 6)}" y1="${f1(l.y)}" x2="${f1(X(l.ext))}" y2="${f1(l.y)}" style="stroke:var(--muted);stroke-width:.8;stroke-dasharray:2 3"/>`);
+    o.push(`<line x1="${f1(gut - 8)}" y1="${f1(l.y)}" x2="${f1(gut)}" y2="${f1(l.y)}" style="stroke:var(--ink);stroke-width:1.2"/>`);
+    const col = l.water ? 'var(--water)' : 'var(--ink)';
+    o.push(`<text x="${f1(gut - 12)}" y="${f1(l.ly + 4)}" text-anchor="end" font-size="11.5"><tspan style="fill:var(--muted)">${l.tag}  </tspan><tspan style="fill:${col};font-family:var(--f-mono);font-weight:500">${fz(l.z)}</tspan></text>`);
+  });
+
+  // rótulos de espessura
+  const tx = (txt, x, y, extra = '') => `<text class="halo" x="${f1(x)}" y="${f1(y)}" text-anchor="middle" font-size="11" style="fill:var(--ink)" ${extra}>${txt}</text>`;
+  if (oper && p.es * s >= 14 && (!op || (m.Bext / 2 - bo / 2) * s >= 70)) o.push(tx(`e<tspan font-size="8" dy="2">s</tspan><tspan dy="-2"> = ${fmt(p.es)}</tspan>`, X(xc0), Y((z.topTop + z.topBot) / 2) + 4));
+  if (op) o.push(tx(`abertura ${fmt(bo)} m`, X(0), Y(z.topBot) + 14));
+  if (p.ei * s >= 14) o.push(tx(`e<tspan font-size="8" dy="2">i</tspan><tspan dy="-2"> = ${fmt(p.ei)}</tspan>`, X(0), Y((z.botTop + z.base) / 2) + 4));
+  if (p.ep * s >= 13) {
+    const cx = X(-(m.Bext / 2 - p.ep / 2)), cy = Y((z.topBot + z.botTop) / 2 + (z.topBot - z.botTop) * 0.28);
+    o.push(`<text class="halo" transform="translate(${f1(cx + 4)},${f1(cy)}) rotate(-90)" text-anchor="middle" font-size="11" style="fill:var(--ink)">e<tspan font-size="8" dy="2">p</tspan><tspan dy="-2"> = ${fmt(p.ep)}</tspan></text>`);
+  }
+
+  // B e H dentro da caixa
+  const zmid = (z.topBot + z.botTop) / 2;
+  o.push(`<line x1="${f1(X(-p.B / 2) + 1)}" y1="${f1(Y(zmid))}" x2="${f1(X(p.B / 2) - 1)}" y2="${f1(Y(zmid))}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+  o.push(tx(`B = ${fmt(p.B)} m`, X(0), Y(zmid) - 6));
+  const xh = X(p.B / 4);
+  o.push(`<line x1="${f1(xh)}" y1="${f1(Y(z.topBot) + 1)}" x2="${f1(xh)}" y2="${f1(Y(z.botTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+  o.push(`<text class="halo" x="${f1(xh + 6)}" y="${f1(Y(zmid + (z.topBot - z.botTop) * 0.3))}" font-size="11" style="fill:var(--ink)">H = ${fmt(p.H)} m</text>`);
+
+  // cobertura de solo sobre a laje de topo
+  if (oper && m.soloTopo.t > 0) {
+    const x0 = X(xc0);
+    o.push(`<line x1="${f1(x0)}" y1="${f1(Y(0) + 1)}" x2="${f1(x0)}" y2="${f1(Y(z.topTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+    o.push(`<text class="halo" x="${f1(x0 + 8)}" y="${f1(Y(z.topTop / 2) + 4)}" font-size="11" style="fill:var(--ink)">solo s/ laje  ${fmt(m.soloTopo.t)} m</text>`);
+  }
+  // solo sobre a aba
+  if (p.ba > 0 && m.soloAba.t > 0) {
+    const xa = X(-(m.Bext / 2 + p.ba / 2));
+    o.push(`<line x1="${f1(xa)}" y1="${f1(Y(0) + 1)}" x2="${f1(xa)}" y2="${f1(Y(z.botTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+    o.push(`<text class="halo" x="${f1(xa - 8)}" y="${f1(Y(z.botTop / 2) + 4)}" text-anchor="end" font-size="11" style="fill:var(--ink)">solo s/ aba  ${fmt(m.soloAba.t)} m</text>`);
+  }
+  // largura da aba
+  if (p.ba > 0) {
+    const yb = Y(z.base) + 16;
+    o.push(`<line x1="${f1(X(-m.Binf / 2))}" y1="${f1(yb)}" x2="${f1(X(-m.Bext / 2))}" y2="${f1(yb)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+    o.push(`<text class="halo" x="${f1(X(-m.Binf / 2) - 6)}" y="${f1(yb + 4)}" text-anchor="end" font-size="11" style="fill:var(--ink)">b<tspan font-size="8" dy="2">a</tspan><tspan dy="-2"> = ${fmt(p.ba)}</tspan></text>`);
+  }
+
+  // subpressão sob a laje de fundo
+  if (sbD.U > 1e-9) {
+    const yb = Y(z.base);
+    const n = Math.max(3, Math.min(8, Math.round(m.Bext * s / 36)));
+    for (let i = 0; i < n; i++) {
+      const xx = X(-m.Bext / 2) + (i + 0.5) * (m.Bext * s / n);
+      o.push(`<line x1="${f1(xx)}" y1="${f1(yb + 34)}" x2="${f1(xx)}" y2="${f1(yb + 4)}" marker-end="url(#aW)" style="stroke:var(--water);stroke-width:1.6"/>`);
+    }
+    o.push(`<text class="halo" x="${f1(X(0))}" y="${f1(yb + 50)}" text-anchor="middle" font-size="11.5" style="fill:var(--water);font-weight:600">u = ${fmt(sbD.u, 1)} kPa  ·  U = ${fmt(sbD.U, 1)} kN</text>`);
+  }
+
+  // empuxo lateral (esquemático) na parede direita
+  const zStart = Math.min(0, oper ? z.topTop : z.topBot);
+  const lat = Calc.lateral({ ...p, zw: zwD }, zStart, z.botTop);
+  if (lat.pts.length >= 2) {
+    const x0 = X(m.Bext / 2);
+    const maxT = Math.max(...lat.pts.map(q => q.sig + q.u));
+    const avail = (xr - x0) - 120;
+    const maxPx = Math.max(40, Math.min(1.5 * s, avail));
+    const k = maxT > 1e-9 ? maxPx / maxT : 0;
+    const yS = Y(lat.pts[0].z), yE = Y(lat.pts[lat.pts.length - 1].z);
+    o.push(`<line x1="${f1(x0)}" y1="${f1(yS)}" x2="${f1(x0)}" y2="${f1(yE)}" style="stroke:var(--ink);stroke-width:.8;stroke-dasharray:3 3"/>`);
+    if (k > 0) {
+      const soilPts = [`${f1(x0)},${f1(yS)}`].concat(lat.pts.map(q => `${f1(x0 + q.sig * k)},${f1(Y(q.z))}`), [`${f1(x0)},${f1(yE)}`]);
+      o.push(`<polygon points="${soilPts.join(' ')}" style="fill:var(--soil-dot);fill-opacity:.55;stroke:var(--ink);stroke-width:1"/>`);
+      const wet = lat.pts.filter(q => q.u > 1e-9);
+      if (wet.length) {
+        const first = lat.pts.indexOf(wet[0]);
+        const seg = lat.pts.slice(Math.max(0, first - 1));
+        const fwd = seg.map(q => `${f1(x0 + (q.sig + q.u) * k)},${f1(Y(q.z))}`);
+        const back = seg.slice().reverse().map(q => `${f1(x0 + q.sig * k)},${f1(Y(q.z))}`);
+        o.push(`<polygon points="${fwd.concat(back).join(' ')}" style="fill:var(--water);fill-opacity:.55;stroke:var(--ink);stroke-width:1"/>`);
+      }
+      // setas
+      const tot = d => {
+        const pts = lat.pts;
+        for (let i = 1; i < pts.length; i++) {
+          if (d <= pts[i].z + 1e-9 || i === pts.length - 1) {
+            const a = pts[i - 1], b = pts[i];
+            const t = b.z === a.z ? 0 : (d - a.z) / (b.z - a.z);
+            return (a.sig + a.u) + t * ((b.sig + b.u) - (a.sig + a.u));
+          }
+        }
+        return 0;
+      };
+      for (let i = 1; i <= 4; i++) {
+        const zz = lat.pts[0].z + (lat.pts[lat.pts.length - 1].z - lat.pts[0].z) * (i / 5);
+        const L = tot(zz) * k;
+        if (L > 8) o.push(`<line x1="${f1(x0 + L)}" y1="${f1(Y(zz))}" x2="${f1(x0 + 1)}" y2="${f1(Y(zz))}" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
+      }
+      const last = lat.pts[lat.pts.length - 1];
+      o.push(`<text class="halo" x="${f1(x0 + (last.sig + last.u) * k + 8)}" y="${f1(yE - 4)}" font-size="11" style="fill:var(--ink)">σ<tspan font-size="8" dy="2">h</tspan><tspan dy="-2"> ≈ ${fmt(last.sig + last.u, 1)} kPa</tspan></text>`);
+      o.push(`<text class="halo" x="${f1(x0 + (last.sig + last.u) * k + 8)}" y="${f1(yE + 9)}" font-size="10.5" style="fill:var(--muted)">K<tspan font-size="8" dy="2">a</tspan><tspan dy="-2"> = ${fmt(lat.Ka, 3)} (esquemático)</tspan></text>`);
+    }
+  }
+  o.push('</svg>');
+  return o.join('');
+}
+
+/* ---------- Aplicativo ---------- */
+const DEFAULTS = {
+  B: 2.10, L: 2.50, H: 2.10, ep: 0.20, ei: 0.20, es: 0.20, zs: -0.50, ba: 0.20, gc: 25,
+  gd: 17, gsat: 19, phi: 30, c: 0, zw: -2.00, gw: 10,
+  fc: 1.10, fs: 1.30, fst: 1.10, fa: 1.10, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
+  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, split: false
+};
+const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim', 'q', 'gg', 'gq', 'psi1', 'k0', 'split'];
+const FIELDS = [
+  { key: 'B', lab: 'Largura, B', tip: 'Largura interna livre', unit: 'm', gt: 0 },
+  { key: 'L', lab: 'Comprimento, L', tip: 'Comprimento interno livre', unit: 'm', gt: 0 },
+  { key: 'H', lab: 'Altura livre, H', tip: 'Altura livre interna entre as lajes', unit: 'm', gt: 0 },
+  { key: 'ep', lab: 'Paredes, e<sub>p</sub>', tip: 'Espessura das paredes', unit: 'm', gt: 0 },
+  { key: 'ei', lab: 'Laje inferior, e<sub>i</sub>', tip: 'Espessura da laje inferior', unit: 'm', gt: 0 },
+  { key: 'es', lab: 'Laje de topo, e<sub>s</sub>', tip: 'Espessura da laje de topo', unit: 'm', gt: 0 },
+  { key: 'ba', lab: 'Aba, b<sub>a</sub>', tip: 'Largura da aba da laje inferior', unit: 'm', ge: 0 },
+  { key: 'bo', lab: 'Abertura, largura b<sub>o</sub>', tip: 'Abertura na laje de topo: largura', unit: 'm', ge: 0 },
+  { key: 'lo', lab: 'Abertura, compr. l<sub>o</sub>', tip: 'Abertura na laje de topo: comprimento', unit: 'm', ge: 0 },
+  { key: 'zs', lab: 'Cota do topo, z<sub>s</sub>', tip: 'Cota da face superior da laje de topo', unit: 'm' },
+  { key: 'gc', lab: 'Concreto, γ<sub>c</sub>', tip: 'Peso específico do concreto', unit: 'kN/m³', gt: 0 },
+  { key: 'wa', lab: 'Peso adicional, W<sub>ad</sub>', tip: 'Peso adicional de equipamentos, blocos de ancoragem etc.', unit: 'kN', ge: 0 },
+  { key: 'gd', lab: 'Solo seco, γ<sub>d</sub>', tip: 'Peso específico do solo seco', unit: 'kN/m³', gt: 0 },
+  { key: 'gsat', lab: 'Solo saturado, γ<sub>sat</sub>', tip: 'Peso específico do solo saturado', unit: 'kN/m³', gt: 0 },
+  { key: 'phi', lab: 'Ângulo de atrito, φ', tip: 'Ângulo de atrito interno do solo', unit: '°', ge: 0, le: 60 },
+  { key: 'c', lab: 'Coesão, c', tip: 'Coesão do solo', unit: 'kPa', ge: 0 },
+  { key: 'zw', lab: 'Cota do N.A., z<sub>w</sub>', tip: 'Cota do nível d\'água em relação ao terreno', unit: 'm' },
+  { key: 'zr', lab: 'Rebaixo do N.A., z<sub>r</sub>', tip: 'Cota do rebaixo do lençol freático na etapa construtiva (ponteiras). Vazio = sem rebaixo', unit: 'm', optional: true },
+  { key: 'gw', lab: 'Água, γ<sub>w</sub>', tip: 'Peso específico da água', unit: 'kN/m³', gt: 0 },
+  { key: 'fc', lab: 'Concreto', tip: 'Divisor do peso do concreto', unit: '', gt: 0 },
+  { key: 'fs', lab: 'Solo sobre a aba', tip: 'Divisor do solo sobre a aba', unit: '', gt: 0 },
+  { key: 'fst', lab: 'Solo sobre a laje', tip: 'Divisor do solo sobre a laje de topo', unit: '', gt: 0 },
+  { key: 'fa', lab: 'Peso adicional', tip: 'Divisor do peso adicional', unit: '', gt: 0 },
+  { key: 'fsmin', lab: 'FS mínimo (FS >)', tip: 'Fator de segurança mínimo do critério', unit: '', ge: 0 },
+  { key: 'fck', lab: 'Concreto, f<sub>ck</sub>', tip: 'Resistência característica do concreto à compressão', unit: 'MPa', ge: 20, le: 90, dec: 0 },
+  { key: 'fyk', lab: 'Aço, f<sub>yk</sub>', tip: 'Resistência característica de escoamento do aço (CA-50 = 500)', unit: 'MPa', gt: 0, dec: 0 },
+  { key: 'gmc', lab: 'γ<sub>c</sub> do concreto', tip: 'Coeficiente de ponderação da resistência do concreto', unit: '', ge: 1, dec: 2 },
+  { key: 'gms', lab: 'γ<sub>s</sub> do aço', tip: 'Coeficiente de ponderação da resistência do aço', unit: '', ge: 1, dec: 2 },
+  { key: 'dl', lab: 'd′ (centro da barra à face)', tip: 'Distância do centro da armadura à face: cobrimento + ø/2', unit: 'cm', gt: 0, dec: 1 },
+  { key: 'wlim', lab: 'Abertura limite, w<sub>k,lim</sub>', tip: 'Abertura máxima de fissuras', unit: 'mm', gt: 0, dec: 2 },
+  { key: 'q', lab: 'Sobrecarga no terreno, q', tip: 'Sobrecarga variável sobre o terreno e a laje de topo', unit: 'kN/m²', ge: 0, dec: 1 },
+  { key: 'gg', lab: 'γ<sub>g</sub> permanentes', tip: 'Coeficiente de ponderação das ações permanentes (solo, água, peso próprio)', unit: '', ge: 1, dec: 2 },
+  { key: 'gq', lab: 'γ<sub>q</sub> sobrecarga', tip: 'Coeficiente de ponderação da sobrecarga', unit: '', ge: 0, dec: 2 },
+  { key: 'psi1', lab: 'ψ<sub>1</sub> (frequente)', tip: 'Fator de redução da sobrecarga na combinação frequente (fissuração)', unit: '', ge: 0, le: 1, dec: 2 }
+];
+// Organização do painel de dados: seção, subgrupo, colunas e campos.
+const LAYOUT = [
+  { sec: 'geo', title: 'Dimensões internas livres', cols: 3, keys: ['B', 'L', 'H'], note: 'H é a distância livre entre a face superior da laje inferior e a face inferior da laje de topo.' },
+  { sec: 'geo', title: 'Espessuras', cols: 3, keys: ['ep', 'ei', 'es'] },
+  { sec: 'geo', title: 'Aba e abertura na laje de topo', cols: 3, keys: ['ba', 'bo', 'lo'], check: { key: 'chamine', text: 'Chaminé sobre a abertura: paredes de espessura e<sub>p</sub> até o terreno (só na etapa de operação)' }, note: 'Aba medida a partir da face externa das paredes. A abertura (fase final) desconta o concreto da laje de topo; b<sub>o</sub> e l<sub>o</sub> são o vão livre interno da chaminé. 0 = sem abertura.' },
+  { sec: 'geo', title: 'Cota, concreto e carga adicional', cols: 3, keys: ['zs', 'gc', 'wa'], note: 'z<sub>s</sub>: cota da face superior da laje de topo, negativa abaixo do terreno (z = 0); valor de exemplo. W<sub>ad</sub>: equipamentos, blocos de ancoragem etc., só na etapa de operação.' },
+  { sec: 'solo', title: 'Peso específico', cols: 2, keys: ['gd', 'gsat'] },
+  { sec: 'solo', title: 'Resistência ao cisalhamento', cols: 2, keys: ['phi', 'c'] },
+  { sec: 'agua', title: 'Nível d\'água e peso da água', cols: 2, keys: ['zw', 'gw'], note: 'z<sub>w</sub> em relação ao terreno (z = 0). Ex.: 2,0 m abaixo do terreno = −2,00.' },
+  { sec: 'agua', title: 'Rebaixo do lençol freático (etapa construtiva)', cols: 2, keys: ['zr'], note: 'Cota até onde as ponteiras mantêm o lençol, por exemplo −1,20. Na etapa construtiva o nível d\'água passa a ser o menor entre z<sub>w</sub> e z<sub>r</sub>, e a subpressão diminui. Vazio = sem rebaixo.' },
+  { sec: 'prem', title: 'Divisores', cols: 2, keys: ['fc', 'fs', 'fst', 'fa'] },
+  { sec: 'prem', title: 'Critério', cols: 2, keys: ['fsmin'] },
+  { sec: 'am', title: 'Materiais', cols: 2, keys: ['fck', 'fyk', 'gmc', 'gms'] },
+  { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm.' },
+  { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, na reação da laje de fundo e nas paredes como K · q.' },
+  { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], check: { key: 'split', text: 'Repartir as cargas entre as duas direções (grelha simplificada). Desmarcado: cada faixa leva a carga inteira.' } }
+];
+const decOf = f => f.dec != null ? f.dec : (['phi', 'gc', 'gd', 'gsat', 'gw'].includes(f.key) ? 1 : 2);
+
+function parseNum(str) {
+  const t = String(str).trim().replace(/\s/g, '').replace(',', '.');
+  if (!/^[-+−]?(\d+\.?\d*|\.\d+)$/.test(t)) return NaN;
+  return Number(t.replace('−', '-'));
+}
+function checkField(f, v) {
+  if (!Number.isFinite(v)) return 'Informe um número.';
+  if (f.gt != null && !(v > f.gt)) return `Informe um valor maior que ${fmt(f.gt, 0)}.`;
+  if (f.ge != null && !(v >= f.ge)) return `Informe um valor de ${fmt(f.ge, 0)} ou mais.`;
+  if (f.le != null && !(v <= f.le)) return `Informe um valor de até ${fmt(f.le, 0)}.`;
+  return '';
+}
+
+function weightsTable(m) {
+  const p = m.p, c = m.constr, o = m.oper;
+  const incl = (st, k) => st.parts.find(x => x.key === k).incl;
+  const mark = b => b ? '<span class="yes">✓ incluída</span>' : '<span class="no">– excluída</span>';
+  const row = (grp, name, dims, g, W, k) => `<tr><td class="l">${name}</td><td class="l num">${dims}</td><td class="num">${g}</td><td class="num"><b>${fmt(W, 1)}</b></td><td>${mark(incl(c, k))}</td><td>${mark(incl(o, k))}</td></tr>`;
+  const sub = (name, dims, g, W) => `<tr class="sub"><td class="l">${name}</td><td class="l num">${dims}</td><td class="num">${g}</td><td class="num">${fmt(W, 1)}</td><td></td><td></td></tr>`;
+  const soilRows = (lay, label, k, submerged) => {
+    let r = row('s', label, lay.t > 0 ? `${fmt(lay.area)} m² × ${fmt(lay.t)} m = ${fmt(lay.Vdry + lay.Vsat)} m³` : 'sem cobertura', lay.sat > 0 && lay.dry > 0 ? `${fmt(p.gd, 1)} / ${fmt(lay.gSat, 1)}` : (lay.sat > 0 ? fmt(lay.gSat, 1) : fmt(p.gd, 1)), lay.W, k);
+    if (lay.dry > 0) r += sub('seco', `${fmt(lay.area)} m² × ${fmt(lay.dry)} m = ${fmt(lay.Vdry)} m³`, fmt(p.gd, 1), lay.Wdry);
+    if (lay.sat > 0) r += sub(submerged ? `saturado, só a fração de solo (γ′ = γ<sub>sat</sub> − γ<sub>w</sub> = ${fmt(p.gsat, 1)} − ${fmt(p.gw, 1)})` : 'saturado', `${fmt(lay.area)} m² × ${fmt(lay.sat)} m = ${fmt(lay.Vsat)} m³`, fmt(lay.gSat, 1), lay.Wsat);
+    return r;
+  };
+  return `<table>
+    <thead><tr><th class="l">Parcela</th><th class="l">Área × espessura = volume</th><th>γ (kN/m³)</th><th>Peso (kN)</th><th>Construtiva</th><th>Operação</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="6">Concreto</td></tr>
+      ${row('c', 'Peso das paredes', `${fmt(m.vol.ringArea)} m² × ${fmt(p.H)} m = ${fmt(m.vol.walls)} m³`, fmt(p.gc, 1), m.W.p, 'paredes')}
+      ${row('c', 'Peso da laje inferior', `${fmt(m.vol.infArea)} m² × ${fmt(p.ei)} m = ${fmt(m.vol.inf)} m³`, fmt(p.gc, 1), m.W.i, 'inferior')}
+      ${row('c', 'Peso da laje de topo', m.vol.openArea > 0 ? `(${fmt(m.vol.supArea)} − ${fmt(m.vol.openArea)}) m² × ${fmt(p.es)} m = ${fmt(m.vol.sup)} m³` : `${fmt(m.vol.supArea)} m² × ${fmt(p.es)} m = ${fmt(m.vol.sup)} m³`, fmt(p.gc, 1), m.W.s, 'superior')}
+      ${m.vol.openArea > 0 ? sub('abertura (já descontada)', `${fmt(m.vol.openArea)} m² × ${fmt(p.es)} m = ${fmt(m.vol.openArea * p.es)} m³`, fmt(p.gc, 1), -m.W.open) : ''}
+      ${m.vol.chimH > 0 ? row('c', 'Chaminé da abertura (e = e<sub>p</sub>, até o terreno)', `(${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} − ${fmt(m.vol.boE)} × ${fmt(m.vol.loE)}) m² × ${fmt(m.vol.chimH)} m = ${fmt(m.vol.chim)} m³`, fmt(p.gc, 1), m.W.chim, 'chamine') : ''}
+      <tr class="grp"><td colspan="6">Solo</td></tr>
+      ${soilRows(m.soloTopo, m.vol.chimH > 0 ? 'Solo sobre a laje de topo (sem a área da chaminé)' : m.vol.openArea > 0 ? 'Solo sobre a laje de topo (sem a área da abertura)' : 'Solo sobre a laje de topo', 'soloTopo', true)}
+      ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', true)}
+      ${p.wa > 0 ? `<tr class="grp"><td colspan="6">Adicional</td></tr>` + row('a', 'Peso adicional (equipamentos, blocos de ancoragem)', 'valor informado', '—', p.wa, 'adicional') : ''}
+    </tbody></table>${subpressaoTable(m)}`;
+}
+
+// Etapa construtiva com o lençol freático rebaixado pelas ponteiras (z_r).
+function rebaixoRows(m, r, sub) {
+  const p = m.p, z = m.z, sb = m.sub, sc = m.subC;
+  return `<tr class="grp"><td colspan="4">Etapa construtiva: lençol freático rebaixado</td></tr>
+      ${r('N.A. rebaixado z<sub>w,c</sub>', `mín(z<sub>w</sub>; z<sub>r</sub>) = mín(${fmt(p.zw)}; ${fmt(p.zr)})`, '—', `${fz(sc.zw)} m`)}
+      ${r('Coluna d\'água h<sub>c</sub>', `z<sub>w,c</sub> − z<sub>base</sub> = (${fmt(sc.zw)}) − (${fmt(z.base)})${sc.h === 0 ? ' → sem coluna positiva, h<sub>c</sub> = 0' : ''}`, '—', `${fmt(sc.h)} m`)}
+      ${r('Volume da coluna A × h<sub>c</sub>', `${fmt(sc.A)} × ${fmt(sc.h)}`, '—', `${fmt(sc.A * sc.h)} m³`)}
+      ${r('Pressão na base u<sub>c</sub>', `γ<sub>w</sub> × h<sub>c</sub> = ${fmt(p.gw, 1)} × ${fmt(sc.h)}`, fmt(p.gw, 1), `${fmt(sc.u, 1)} kPa`)}
+      ${r('Subpressão U<sub>c</sub>', `u<sub>c</sub> × A = ${fmt(sc.u, 1)} × ${fmt(sc.A)}  (= γ<sub>w</sub> × A × h<sub>c</sub>)`, fmt(p.gw, 1), `${fmt(sc.U, 1)} kN`, true)}
+      ${sub('alívio pelo rebaixo', `U − U<sub>c</sub> = ${fmt(sb.U, 1)} − ${fmt(sc.U, 1)} = ${fmt(sb.U - sc.U, 1)} kN`)}`;
+}
+
+function subpressaoTable(m) {
+  const p = m.p, z = m.z, sb = m.sub;
+  const r = (name, calc, g, res, bold) => `<tr><td class="l">${name}</td><td class="l num">${calc}</td><td class="num">${g}</td><td class="num">${bold ? `<b>${res}</b>` : res}</td></tr>`;
+  const sub = (name, calc) => `<tr class="sub"><td class="l">${name}</td><td class="l num" colspan="3">${calc}</td></tr>`;
+  return `<table style="margin-top:18px">
+    <thead><tr><th class="l">Subpressão${m.subC.rebaixo ? ' (etapa de operação)' : ' (vale para as duas etapas)'}</th><th class="l">Cálculo</th><th>γ (kN/m³)</th><th>Resultado</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="4">Área da subpressão: medidas externas das paredes, sem a aba</td></tr>
+      ${r('Largura externa B<sub>ext</sub>', `B + 2·e<sub>p</sub> = ${fmt(p.B)} + 2 × ${fmt(p.ep)}`, '—', `${fmt(m.Bext)} m`)}
+      ${r('Comprimento externo L<sub>ext</sub>', `L + 2·e<sub>p</sub> = ${fmt(p.L)} + 2 × ${fmt(p.ep)}`, '—', `${fmt(m.Lext)} m`)}
+      ${r('Área A', `B<sub>ext</sub> × L<sub>ext</sub> = ${fmt(m.Bext)} × ${fmt(m.Lext)}`, '—', `${fmt(sb.A)} m²`, true)}
+      ${sub('fora da área', `aba b<sub>a</sub> = ${fmt(p.ba)} m (laje inferior ${fmt(m.Binf)} × ${fmt(m.Linf)} m = ${fmt(m.vol.infArea)} m²)`)}
+      <tr class="grp"><td colspan="4">Coluna d'água e esforço de subpressão</td></tr>
+      ${r('Coluna d\'água h', `z<sub>w</sub> − z<sub>base</sub> = (${fmt(p.zw)}) − (${fmt(z.base)})${sb.h === 0 ? ' → sem coluna positiva, h = 0' : ''}`, '—', `${fmt(sb.h)} m`)}
+      ${r('Volume da coluna A × h', `${fmt(sb.A)} × ${fmt(sb.h)}`, '—', `${fmt(sb.A * sb.h)} m³`)}
+      ${r('Pressão na base u', `γ<sub>w</sub> × h = ${fmt(p.gw, 1)} × ${fmt(sb.h)}`, fmt(p.gw, 1), `${fmt(sb.u, 1)} kPa`)}
+      ${r('Subpressão U', `u × A = ${fmt(sb.u, 1)} × ${fmt(sb.A)}  (= γ<sub>w</sub> × A × h)`, fmt(p.gw, 1), `${fmt(sb.U, 1)} kN`, true)}
+      ${m.subC.rebaixo ? rebaixoRows(m, r, sub) : ''}
+    </tbody></table>`;
+}
+
+function stageCard(title, tag, st, m) {
+  const p = m.p, sb = m.sub;
+  const pill = st.status === 'ok' ? '<span class="pill ok">✓ Satisfatório</span>'
+    : st.status === 'nok' ? '<span class="pill bad">✕ Não satisfatório</span>'
+    : '<span class="pill neutral">Sem subpressão calculada</span>';
+  const cls = st.status === 'ok' ? 'ok' : st.status === 'nok' ? 'bad' : '';
+  const fsBlock = st.FS != null
+    ? `<div class="fs"><span class="big ${cls}">${fmt(st.FS, 2)}</span><span class="lab">fator de segurança<br>critério: FS &gt; ${fmt(p.fsmin, 2)}</span></div>`
+    : `<p class="msg">Não há subpressão hidrostática calculada para a hipótese adotada, então o fator de segurança não é apresentado.</p>`;
+  return `<article class="stage">
+    <div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${pill}</div>
+    ${fsBlock}
+  </article>`;
+}
+
+// Memória de cálculo de uma etapa: parcelas resistentes, R, U e FS = R ÷ U.
+function stageCalc(title, st, m) {
+  const sb = st.sub;
+  const rows = st.parts.map(x => x.incl
+    ? `<tr><td class="l">${x.label}</td><td class="num">${fmt(x.W, 1)}</td><td class="num">÷ ${fmt(x.div, 2)}</td><td class="num">${fmt(x.W / x.div, 1)}</td></tr>`
+    : `<tr class="off"><td class="l">${x.label}</td><td class="num">—</td><td class="num"></td><td class="l" style="text-align:right">não considerada</td></tr>`).join('');
+  const fsRow = st.FS != null
+    ? `<tr class="total"><td class="l">Fator de segurança FS = R ÷ U</td><td></td><td class="num">${fmt(st.R, 1)} ÷ ${fmt(sb.U, 1)}</td><td class="num">${fmt(st.FS, 2)}</td></tr>`
+    : `<tr class="total"><td class="l">Fator de segurança</td><td colspan="3" style="text-align:right">não calculado: sem subpressão (U = 0)</td></tr>`;
+  return `<div class="calcstage"><h3>${title}</h3><div class="tablewrap"><table>
+    <thead><tr><th class="l">Parcela resistente</th><th>Peso (kN)</th><th>Divisor</th><th>Resist. (kN)</th></tr></thead>
+    <tbody>${rows}
+      <tr class="total"><td class="l">Resistência R</td><td></td><td></td><td class="num">${fmt(st.R, 1)}</td></tr>
+      <tr><td class="l">Subpressão U = u × A${sb.rebaixo ? ' (N.A. rebaixado)' : ''}</td><td></td><td class="num">${fmt(sb.u, 1)} × ${fmt(sb.A)}</td><td class="num">${fmt(sb.U, 1)}</td></tr>
+      ${fsRow}
+    </tbody></table></div></div>`;
+}
+
+function summaryHtml(m) {
+  const p = m.p, z = m.z;
+  const it = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  return `<h3>Dimensões</h3>
+    ${it('Internas B × L', `${fmt(p.B)} × ${fmt(p.L)} m`)}
+    ${it('Altura livre interna H', `${fmt(p.H)} m`)}
+    ${it('Externas B<sub>ext</sub> × L<sub>ext</sub>', `${fmt(m.Bext)} × ${fmt(m.Lext)} m`)}
+    ${it('Laje inferior com aba B<sub>inf</sub> × L<sub>inf</sub>', `${fmt(m.Binf)} × ${fmt(m.Linf)} m`)}
+    ${it('Altura total', `${fmt(m.Htot)} m`)}
+    ${it('Área de subpressão A = B<sub>ext</sub>·L<sub>ext</sub>', `${fmt(m.sub.A)} m²`)}
+    ${it('Abertura na laje de topo b<sub>o</sub> × l<sub>o</sub>', m.vol.openArea > 0 ? `${fmt(Math.min(p.bo, m.Bext))} × ${fmt(Math.min(p.lo, m.Lext))} m (${fmt(m.vol.openArea)} m²)` : 'sem abertura')}
+    ${it('Chaminé (externa × altura)', m.vol.chimH > 0 ? `${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} m, h = ${fmt(m.vol.chimH)} m` : 'sem chaminé')}
+    <h3>Espessuras</h3>
+    ${it('Paredes e<sub>p</sub>', `${fmt(p.ep)} m`)}
+    ${it('Laje inferior e<sub>i</sub>', `${fmt(p.ei)} m`)}
+    ${it('Laje de topo e<sub>s</sub>', `${fmt(p.es)} m`)}
+    ${it('Aba b<sub>a</sub>', `${fmt(p.ba)} m`)}
+    <h3>Cotas (terreno z = 0)</h3>
+    ${it('Face superior da laje de topo', `${fz(z.topTop)} m`)}
+    ${it('Face inferior da laje de topo', `${fz(z.topBot)} m`)}
+    ${it('Face superior da laje inferior', `${fz(z.botTop)} m`)}
+    ${it('Cota inferior da estrutura', `${fz(z.base)} m`)}
+    ${it('Nível d\'água z<sub>w</sub>', `${fz(p.zw)} m`)}`;
+}
+
+function warningsFor(m) {
+  const w = [], p = m.p, z = m.z;
+  if (z.topTop > 0) w.push('A laje de topo está acima do terreno: não há cobertura de solo sobre ela.');
+  if (z.botTop >= 0) w.push('A laje inferior está acima do terreno: não há solo sobre a aba.');
+  if (p.zw > 0) w.push('O nível d\'água está acima do terreno. O solo abaixo dele é tratado como saturado.');
+  if (p.zw > z.topTop) w.push('O nível d\'água está acima da face superior da laje de topo. O solo saturado sobre ela entra com γ′ = γsat − γw, pois a água já é considerada até o topo; a pressão da água sobre a laje não é somada.');
+  if (m.sub.h === 0) w.push('O nível d\'água está na face inferior da laje inferior ou abaixo dela: subpressão igual a zero.');
+  if (p.gsat < p.gd) w.push('O peso específico do solo saturado está menor que o do solo seco. Confira os dados.');
+  if (p.bo > m.Bext || p.lo > m.Lext) w.push('A abertura é maior que a laje de topo e foi limitada às dimensões externas da caixa.');
+  if ((p.bo > 0) !== (p.lo > 0)) w.push('Informe largura e comprimento da abertura. Com um deles igual a zero, não há desconto.');
+  if (p.zr != null && p.zr >= p.zw) w.push('O rebaixo informado está na cota do nível d\'água ou acima dele: não alivia a subpressão da etapa construtiva.');
+  if (m.subC.rebaixo && m.subC.h === 0) w.push('Com o rebaixo, o nível d\'água fica na face inferior da laje inferior ou abaixo dela: subpressão igual a zero na etapa construtiva.');
+  if (m.vol.chimH > 0 && (m.vol.boE + 2 * p.ep > m.Bext || m.vol.loE + 2 * p.ep > m.Lext)) w.push('A chaminé (abertura mais as paredes) é maior que a laje de topo. Confira as dimensões.');
+  if (p.chamine && m.vol.openArea > 0 && m.vol.chimH === 0) w.push('A laje de topo está na cota do terreno ou acima: a chaminé tem altura zero.');
+  return w;
+}
+
+/* ---------- Memorial de cálculo compactado (.docx, uma página) ---------- */
+const PRINT = { ink: '#1b2830', muted: '#566872', line: '#c5cfd3', accent: '#1d5f8a', 'accent-ink': '#ffffff',
+  concrete: '#b9c3c8', 'concrete-line': '#6c7a82', soil: '#d6bd94', 'soil-dot': '#a88a5c', water: '#2f86c0',
+  ok: '#1b7a4b', 'ok-bg': '#dcefe4', bad: '#b0372b', 'bad-bg': '#f6dfdb', warn: '#7d5208', 'warn-bg': '#f5ead3',
+  surface: '#ffffff', field: '#ffffff', bg: '#ffffff',
+  'f-display': 'Arial, Helvetica, sans-serif', 'f-body': 'Arial, Helvetica, sans-serif',
+  'f-mono': "Consolas, 'Courier New', monospace" };
+
+function plainText(s) {
+  return String(s).replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+}
+function xesc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function memorialSvg(m, oper) {
+  let s = drawSection(m, oper);
+  const vb = s.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  const W = parseFloat(vb[1]) + 160, H = parseFloat(vb[2]);
+  s = s.replace(vb[0], 'viewBox="-50 0 ' + W + ' ' + H + '"');
+  s = s.replace(/font-size="([\d.]+)"/g, (a, n) => 'font-size="' + (parseFloat(n) * 1.45).toFixed(1) + '"');
+  s = s.replace(/var\(--([a-z-]+)\)/g, (a, k) => PRINT[k] || '#000000');
+  s = s.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif" ');
+  s = s.replace('</defs>', '</defs><style>.halo{paint-order:stroke;stroke:#ffffff;stroke-width:3.5px;stroke-linejoin:round}</style><rect width="100%" height="100%" fill="#ffffff"/>');
+  return { svg: s, W, H };
+}
+
+function svgToPng(svg, W, H, scale) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+      const g = c.getContext('2d');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => b ? b.arrayBuffer().then(a => resolve(new Uint8Array(a))) : reject(new Error('png')), 'image/png');
+    };
+    img.onerror = () => reject(new Error('svg'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
+/* zip sem compressão (método "store") */
+const CRC_T = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files) {
+  const enc = new TextEncoder(), chunks = [], cd = [];
+  let off = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
+    ch.setUint32(42, off, true);
+    cd.push(new Uint8Array(ch.buffer), name);
+    off += 30 + name.length + data.length;
+  });
+  const cdSize = cd.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  const all = chunks.concat(cd, [new Uint8Array(end.buffer)]);
+  const out = new Uint8Array(all.reduce((a, b) => a + b.length, 0));
+  let p = 0; all.forEach(b => { out.set(b, p); p += b.length; });
+  return out;
+}
+
+/* helpers WordprocessingML */
+const wRun = (t, o = {}) => `<w:r><w:rPr>${o.b ? '<w:b/>' : ''}${o.i ? '<w:i/>' : ''}${o.color ? `<w:color w:val="${o.color}"/>` : ''}<w:sz w:val="${o.sz || 14}"/></w:rPr><w:t xml:space="preserve">${xesc(t)}</w:t></w:r>`;
+const wPar = (runs, o = {}) => `<w:p><w:pPr>${o.keep ? '<w:keepNext/>' : ''}<w:spacing w:before="${o.before || 0}" w:after="${o.after || 0}"/><w:jc w:val="${o.al || 'left'}"/></w:pPr>${runs}</w:p>`;
+const wGap = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
+function wCell(w, content, o = {}) {
+  const bd = o.bottom ? `<w:tcBorders><w:bottom w:val="single" w:sz="4" w:space="0" w:color="${o.bottom}"/></w:tcBorders>` : '';
+  return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ''}${bd}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ''}<w:vAlign w:val="${o.va || 'center'}"/></w:tcPr>${content}</w:tc>`;
+}
+function wTbl(widths, rows, o = {}) {
+  const none = '<w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>';
+  const box = c => ['top', 'left', 'bottom', 'right'].map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="${c}"/>`).join('') + '<w:insideH w:val="nil"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="' + c + '"/>';
+  const mar = o.mar == null ? 30 : o.mar;
+  return `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${o.box ? box(o.box) : none}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="${mar}" w:type="dxa"/><w:left w:w="${o.padx == null ? 60 : o.padx}" w:type="dxa"/><w:bottom w:w="${mar}" w:type="dxa"/><w:right w:w="${o.padx == null ? 60 : o.padx}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
+}
+const wRow = cells => `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
+
+function memorialDocXml(m, imgs) {
+  const p = m.p, z = m.z, sbO = m.oper.sub, sbC = m.constr.sub;
+  const SZ = 14, LN = 'c5cfd3';
+  const verd = st => st.status === 'ok' ? ['Satisfatório', PRINT.ok, 'dcefe4'] : st.status === 'nok' ? ['Não satisfatório', PRINT.bad, 'f6dfdb'] : ['Sem subpressão calculada', PRINT.muted, 'eef1f2'];
+
+  const fsCell = (w, title, tag, st) => {
+    const v = verd(st);
+    const body = wPar(wRun(title.toUpperCase(), { b: true, sz: 15 }) + wRun('  ' + tag, { sz: 12, color: '566872' })) +
+      wPar((st.FS != null ? wRun('FS = ' + fmt(st.FS, 2), { b: true, sz: 28, color: v[1].slice(1) }) + wRun('   ') : '') +
+        wRun((st.status === 'ok' ? '✓ ' : st.status === 'nok' ? '✕ ' : '') + v[0], { b: true, sz: 17, color: v[1].slice(1) }) +
+        wRun(st.FS != null ? '  (FS > ' + fmt(p.fsmin, 2) + ')' : '', { sz: 13, color: '566872' }));
+    return wCell(w, body, { fill: v[2] });
+  };
+  const fsTbl = wTbl([5273, 5273], [wRow([
+    fsCell(5273, 'Etapa construtiva', m.subC.rebaixo ? 'sem laje de topo · N.A. rebaixado' : 'sem laje de topo', m.constr),
+    fsCell(5273, 'Etapa de operação', 'caixa completa, com solo sobre a laje', m.oper)])], { box: 'ffffff', mar: 50, padx: 100 });
+
+  const imgBlock = (title, im, idx) => {
+    const maxW = 5580000, maxH = 3100000; // até 15,5 cm × 8,6 cm
+    let cx = maxW, cy = Math.round(maxW * im.H / im.W);
+    if (cy > maxH) { cy = maxH; cx = Math.round(maxH * im.W / im.H); }
+    const draw = `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${idx}" name="Secao ${idx}" descr="Seção transversal esquemática - ${xesc(title)}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${idx}" name="secao${idx}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg${idx}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    return wPar(wRun('Seção transversal · ' + title, { b: true, sz: 15 }), { keep: true, before: 60, after: 20 }) + wPar(draw, { al: 'center' });
+  };
+  const imgs2 = imgBlock('etapa construtiva' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : ''), imgs[0], 1) + imgBlock('etapa de operação', imgs[1], 2);
+
+  /* dados de entrada */
+  const op = m.vol.openArea > 0;
+  const items = [
+    ['Internas B × L × H', `${fmt(p.B)} × ${fmt(p.L)} × ${fmt(p.H)} m`],
+    ['Espessuras parede / inf. / topo', `${fmt(p.ep)} / ${fmt(p.ei)} / ${fmt(p.es)} m`],
+    ['Aba ba', `${fmt(p.ba)} m`],
+    ['Externas Bext × Lext', `${fmt(m.Bext)} × ${fmt(m.Lext)} m`],
+    ['Área de subpressão A', `${fmt(m.sub.A)} m²`],
+    ['Cota topo laje · base', `${fz(z.topTop)} · ${fz(z.base)} m`],
+    ['Abertura na laje de topo', op ? `${fmt(Math.min(p.bo, m.Bext))} × ${fmt(Math.min(p.lo, m.Lext))} m` : 'sem abertura'],
+    ['Chaminé (altura)', m.vol.chimH > 0 ? `h = ${fmt(m.vol.chimH)} m` : 'sem chaminé'],
+    ['Peso adicional (operação)', p.wa > 0 ? `${fmt(p.wa, 1)} kN` : '—'],
+    ['γd / γsat', `${fmt(p.gd, 1)} / ${fmt(p.gsat, 1)} kN/m³`],
+    ['φ / c', `${fmt(p.phi, 1)}° / ${fmt(p.c, 1)} kPa`],
+    ['N.A. zw · rebaixo zr', `${fz(p.zw)} m · ${p.zr != null ? fz(p.zr) + ' m' : 'sem rebaixo'}`],
+    ['Divisores: concreto · aba', `${fmt(p.fc, 2)} · ${fmt(p.fs, 2)}`],
+    ['Divisores: topo · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`]
+  ];
+  const kc = (t, w, v) => wCell(w, wPar(wRun(t, { sz: SZ, b: v, color: v ? '1b2830' : '566872' }), { al: v ? 'right' : 'left' }), { bottom: LN });
+  const inRows = [wRow([wCell(10546, wPar(wRun('DADOS DE ENTRADA', { b: true, sz: 13, color: '1d5f8a' })), { span: 4, bottom: '1d5f8a' })])];
+  for (let i = 0; i < items.length; i += 2) {
+    const a = items[i], b = items[i + 1] || ['', ''];
+    inRows.push(wRow([kc(a[0], 2650), kc(a[1], 2623, true), kc(b[0] ? '      ' + b[0] : '', 2650), kc(b[1], 2623, true)]));
+  }
+  const inTbl = wTbl([2650, 2623, 2650, 2623], inRows, { mar: 14, padx: 40 });
+
+  /* tabela de uma etapa */
+  const stageTbl = (title, st) => {
+    const sb = st.sub, W4 = [1950, 800, 1200, 1050];
+    const c = (i, t, o = {}) => wCell(W4[i], wPar(wRun(t, { sz: SZ, b: o.b, color: o.color }), { al: i === 0 ? 'left' : 'right' }), { bottom: LN, fill: o.fill });
+    const rows = [
+      wRow([wCell(5000, wPar(wRun(title.toUpperCase(), { b: true, sz: 13, color: '1d5f8a' })), { span: 4, bottom: '1d5f8a' })]),
+      wRow([wCell(5000, wPar(wRun(`N.A. z = ${fz(sb.zw)} m${sb.rebaixo ? ' (rebaixado)' : ''} · h = zw − base = ${fmt(sb.h)} m · u = γw·h = ${fmt(sb.u, 1)} kPa`, { sz: 12, color: '566872', i: true })), { span: 4, bottom: LN })]),
+      wRow([c(0, 'Parcela resistente', { b: true }), c(1, 'Peso kN', { b: true }), c(2, 'Divisor', { b: true }), c(3, 'Resist. kN', { b: true })])
+    ];
+    st.parts.forEach(x => {
+      const lab = plainText(x.label);
+      rows.push(x.incl ? wRow([c(0, lab), c(1, fmt(x.W, 1)), c(2, '÷ ' + fmt(x.div, 2)), c(3, fmt(x.W / x.div, 1))])
+        : wRow([c(0, lab, { color: '8d9ea8' }), c(1, '—', { color: '8d9ea8' }), c(2, ''), c(3, 'não consid.', { color: '8d9ea8' })]));
+    });
+    rows.push(wRow([c(0, 'Resistência R', { b: true, fill: 'eef1f2' }), c(1, '', { fill: 'eef1f2' }), c(2, '', { fill: 'eef1f2' }), c(3, fmt(st.R, 1), { b: true, fill: 'eef1f2' })]));
+    rows.push(wRow([c(0, 'Subpressão U = u × A'), c(1, ''), c(2, `${fmt(sb.u, 1)} × ${fmt(sb.A)}`), c(3, fmt(sb.U, 1))]));
+    const v = verd(st);
+    rows.push(st.FS != null
+      ? wRow([c(0, 'FS = R ÷ U', { b: true, fill: v[2] }), c(1, '', { fill: v[2] }), c(2, `${fmt(st.R, 1)} ÷ ${fmt(sb.U, 1)}`, { fill: v[2] }), c(3, fmt(st.FS, 2), { b: true, fill: v[2], color: v[1].slice(1) })])
+      : wRow([wCell(5000, wPar(wRun('FS não calculado: sem subpressão (U = 0)', { sz: SZ, b: true })), { span: 4, fill: v[2] })]));
+    return wTbl(W4, rows, { mar: 14, padx: 40 });
+  };
+
+  const calcTbl = wTbl([5273, 5273], [wRow([
+    wCell(5273, stageTbl('Memória · etapa construtiva', m.constr) + wGap, { va: 'top' }),
+    wCell(5273, stageTbl('Memória · etapa de operação', m.oper) + wGap, { va: 'top' })])], { mar: 0, padx: 60 });
+
+  let ver = '';
+  try { const mm = document.querySelector('.eyebrow').textContent.match(/v\d+(\.\d+)*/); if (mm) ver = ' ' + mm[0]; } catch (e) {}
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const title = wPar(wRun('MEMÓRIA DE CÁLCULO · VERIFICAÇÃO À FLUTUAÇÃO', { b: true, sz: 22, color: '1b2830' }), { after: 10 }) +
+    wPar(wRun(`Caixa enterrada de concreto armado, ${fmt(p.B)} × ${fmt(p.L)} m internos, altura livre ${fmt(p.H)} m · ${hoje}`, { sz: 14, color: '566872' }), { after: 60 });
+  const foot = wPar(wRun('Cálculo preliminar. FS = R ÷ U; critério FS > ' + fmt(p.fsmin, 2) + '. Subpressão em A = Bext × Lext (sem aba), u = γw · (zw − cota da base). Resistência R = Σ (peso ÷ divisor). Solo submerso com γ′ = γsat − γw; sem pressão da água sobre a laje de topo. Desenho esquemático; o diagrama de empuxo não é resultado de dimensionamento.', { sz: 11, color: '566872', i: true }), { before: 50 });
+  const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="680" w:right="680" w:bottom="620" w:left="680" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr>';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${title}${fsTbl}${imgs2}${wPar('', { after: 40 })}${calcTbl}${wPar('', { after: 40 })}${inTbl}${foot}${sect}</w:body></w:document>`;
+}
+
+async function buildMemorial(m) {
+  const a = memorialSvg(m, false), b = memorialSvg(m, true);
+  const pngA = await svgToPng(a.svg, a.W, a.H, 2.4), pngB = await svgToPng(b.svg, b.W, b.H, 2.4);
+  const doc = memorialDocXml(m, [a, b]);
+  const NS = 'http://schemas.openxmlformats.org/';
+  const files = [
+    { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${NS}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>` },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${NS}officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>` },
+    { name: 'word/_rels/document.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rIdSt" Type="${NS}officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdImg1" Type="${NS}officeDocument/2006/relationships/image" Target="media/secao1.png"/><Relationship Id="rIdImg2" Type="${NS}officeDocument/2006/relationships/image" Target="media/secao2.png"/></Relationships>` },
+    { name: 'word/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/><w:sz w:val="14"/><w:szCs w:val="14"/><w:lang w:val="pt-BR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>` },
+    { name: 'word/document.xml', data: doc },
+    { name: 'word/media/secao1.png', data: pngA },
+    { name: 'word/media/secao2.png', data: pngB }
+  ];
+  return zipStore(files);
+}
+
+/* ---------- Aba Armaduras: tabelas e desenhos ---------- */
+const fb = phi => String(phi).replace('.', ',');
+const fsp = s => fmt(s, 1).replace(/,0$/, '');
+
+function armSrcHtml(m) {
+  const p = m.p, it = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  return it('Internas B × L × H', `${fmt(p.B)} × ${fmt(p.L)} × ${fmt(p.H)} m`) +
+    it('Paredes · fundo · topo', `${fmt(p.ep)} · ${fmt(p.ei)} · ${fmt(p.es)} m`) +
+    it('Topo da laje · base', `${fz(m.z.topTop)} · ${fz(m.z.base)} m`) +
+    it('γ<sub>d</sub> · γ<sub>sat</sub> · γ<sub>c</sub>', `${fmt(p.gd, 1)} · ${fmt(p.gsat, 1)} · ${fmt(p.gc, 1)}`) +
+    it('φ · c', `${fmt(p.phi, 1)}° · ${fmt(p.c, 1)} kPa`) +
+    it('N.A. z<sub>w</sub> (operação)', `${fz(p.zw)} m`);
+}
+
+function armLoadsHtml(m, A) {
+  const p = m.p;
+  const r = (a, b, c, d) => `<tr><td class="l">${a}</td><td class="l num">${b}</td><td class="num">${c}</td><td class="num">${d}</td></tr>`;
+  const g = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
+  const kTxt = A.k0 ? `K<sub>0</sub> = 1 − sen ${fmt(p.phi, 1)}°` : `K<sub>a</sub> = tg²(45° − ${fmt(p.phi, 1)}°/2)${p.c > 0 ? ', parcela −2c√K<sub>a</sub>' : ''}`;
+  const dRow = (lab, d) => r(lab, `z = ${fz(-d)} m: K·σ′<sub>v</sub> = ${fmt(A.sh(d), 2)}; u = ${fmt(A.uw(d), 2)}`, fmt(A.pg(d), 2), fmt(A.pqL, 2));
+  let h = `<table><thead><tr><th class="l">Ação</th><th class="l">Composição</th><th>Permanente g</th><th>Variável q</th></tr></thead><tbody>`;
+  h += g('Vãos de cálculo (eixos dos elementos, m)');
+  h += r('Direção B · direção L', `B + e<sub>p</sub> · L + e<sub>p</sub>`, fmt(A.Bc), fmt(A.Lc));
+  h += r('Altura das paredes H<sub>c</sub>', `H + (e<sub>s</sub> + e<sub>i</sub>)/2`, fmt(A.Hc), '');
+  h += g('Laje de topo (kN/m²)');
+  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>s</sub> = ${fmt(p.gc, 1)} × ${fmt(p.es)}`, fmt(A.qtSelf, 2), '—');
+  h += r('Solo sobre a laje', A.cover > 0 ? `σ<sub>v</sub> total, cobertura de ${fmt(A.cover)} m` : 'sem cobertura', fmt(A.qtSoil, 2), '—');
+  h += r('Sobrecarga no terreno', 'q', '—', fmt(p.q, 2));
+  h += `<tr class="total"><td class="l">Total</td><td></td><td class="num">${fmt(A.qtg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
+  h += g('Laje de fundo: pressão de baixo para cima (kN/m²)');
+  h += r('Reação do terreno', `laje de topo + paredes (${fmt(A.wallsW, 2)})`, fmt(A.qbEq, 2), fmt(p.q, 2));
+  h += r('Subpressão líquida', `u<sub>base</sub> − γ<sub>c</sub>·e<sub>i</sub> = ${fmt(A.uBase, 2)} − ${fmt(p.gc * p.ei, 2)}`, fmt(A.qbWat, 2), '—');
+  h += `<tr class="total"><td class="l">Adotada</td><td class="l">${A.waterGov ? 'governa a subpressão' : 'governa a reação do terreno'}</td><td class="num">${fmt(A.qbg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
+  h += g(`Paredes: pressão lateral (kPa), ${kTxt} = ${fmt(A.K, 3)}`);
+  h += dRow('Eixo da laje de topo', A.dA);
+  if (A.dw > A.dA && A.dw < A.dB) h += dRow('Nível d\'água', A.dw);
+  h += dRow('Face superior da laje de fundo (anel)', A.ring.d);
+  h += dRow('Eixo da laje de fundo', A.dB);
+  if (p.split) {
+    h += g('Repartição das cargas entre as direções (k = l⁴ da outra direção ÷ soma dos l⁴)');
+    h += r('Lajes', 'faixa paralela a B · paralela a L', fmt(A.ksB, 3), fmt(A.ksL, 3));
+    h += r('Paredes longas', 'vertical · horizontal', fmt(A.kvLong, 3), fmt(A.khLong, 3));
+    h += r('Paredes curtas', 'vertical · horizontal', fmt(A.kvShort, 3), fmt(A.khShort, 3));
+  }
+  return h + '</tbody></table>';
+}
+
+function armVerdictsHtml(res) {
+  const card = (title, tag, ok, big, lab) => `<article class="stage"><div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${ok ? '<span class="pill ok">✓ Atende</span>' : '<span class="pill bad">✕ Não atende</span>'}</div><div class="fs"><span class="big ${ok ? 'ok' : 'bad'}">${big}</span><span class="lab">${lab}</span></div></article>`;
+  return card('Flexão', 'ELU, envoltória', res.nFlex === res.n, `${res.nFlex}/${res.n}`, 'faces com A<sub>s,ef</sub> ≥ A<sub>s,nec</sub>') +
+    card('Fissuração', 'ELS, combinação frequente', res.wMax <= res.wlim + 1e-9, fmt(res.wMax, 2), `w<sub>k,máx</sub> (mm)<br>limite ${fmt(res.wlim, 2)} mm`) +
+    card('Cortante', 'sem estribos, V<sub>Rd1</sub>', res.vMax <= 1 + 1e-9, fmt(res.vMax, 2), 'maior V<sub>Sd</sub> ÷ V<sub>Rd1</sub><br>critério ≤ 1,00');
+}
+
+function armTableHtml(A, sel, chk) {
+  const opt = (vals, cur, f) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${f(v)}</option>`).join('');
+  let h = `<table class="armt"><thead><tr><th class="l">Armadura</th><th class="l">Face tracionada</th><th>M<sub>d</sub></th><th>M<sub>ser</sub></th><th>A<sub>s,calc</sub></th><th>A<sub>s,mín</sub></th><th>A<sub>s,nec</sub></th><th>Barras adotadas</th><th>A<sub>s,ef</sub></th><th>w<sub>k</sub></th><th class="l">Situação</th></tr>
+    <tr class="units"><th></th><th></th><th>kN·m/m</th><th>kN·m/m</th><th>cm²/m</th><th>cm²/m</th><th>cm²/m</th><th></th><th>cm²/m</th><th>mm</th><th></th></tr></thead><tbody>`;
+  A.groups.forEach(g => {
+    h += `<tr class="grp"><td colspan="11">${g.name} · h = ${fmt(g.h * 100, 0)} cm</td></tr>`;
+    A.rows.filter(r => r.group === g.key).forEach((r, i) => {
+      const s = sel[r.key], c = chk[r.key];
+      let st;
+      if (!r.flex.ok) st = '<span class="pill bad">x/d acima do limite</span>';
+      else if (!c.okAs) st = `<span class="pill bad">Faltam ${fmt(r.AsReq - c.As, 2)} cm²/m</span>`;
+      else if (!c.okW) st = '<span class="pill bad">w<sub>k</sub> acima do limite</span>';
+      else st = '<span class="pill ok">✓ Atende</span>';
+      h += `<tr${i % 2 ? ' class="pair"' : ''}>${i % 2 === 0 ? `<td class="l" rowspan="2">${r.dir}</td>` : ''}<td class="l">${r.face}</td>
+        <td class="num">${fmt(r.Md, 2)}</td><td class="num">${fmt(r.Ms, 2)}</td><td class="num">${Number.isFinite(r.AsCalc) ? fmt(r.AsCalc, 2) : '—'}</td><td class="num">${fmt(r.AsMin, 2)}</td>
+        <td class="num"><b>${Number.isFinite(r.AsReq) ? fmt(r.AsReq, 2) : '—'}</b>${r.govMin ? '<span class="gmin">mín.</span>' : ''}</td>
+        <td><div class="barsel"><span>ø</span><select data-k="${r.key}" data-f="phi" aria-label="Bitola, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.BARS, s.phi, fb)}</select><span>c/</span><select data-k="${r.key}" data-f="s" aria-label="Espaçamento em cm, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.SPAC, s.s, fsp)}</select>${s.manual ? '<span class="tagman">manual</span>' : ''}</div></td>
+        <td class="num">${fmt(c.As, 2)}</td><td class="num">${fmt(c.c.wk, 3)}</td><td class="l">${st}</td></tr>`;
+    });
+  });
+  return h + '</tbody></table>';
+}
+
+function armShearHtml(A, chk, p) {
+  let h = `<table><thead><tr><th class="l">Elemento</th><th class="l">Direção</th><th>V<sub>Sd</sub> (kN/m)</th><th>d (cm)</th><th>ρ<sub>1</sub> (%)</th><th>k</th><th>V<sub>Rd1</sub> (kN/m)</th><th>V<sub>Sd</sub> ÷ V<sub>Rd1</sub></th><th class="l">Situação</th></tr></thead><tbody>`;
+  const out = [];
+  A.shear.forEach(v => {
+    const As = chk[v.extKey].As, R = Arm.vrd1(As, v.h, p.dl, A.P), ratio = v.Vd / R.V;
+    out.push(ratio);
+    h += `<tr><td class="l">${v.el}</td><td class="l">${v.dir}</td><td class="num">${fmt(v.Vd, 1)}</td><td class="num">${fmt(v.h - p.dl, 1)}</td><td class="num">${fmt(R.rho1 * 100, 3)}</td><td class="num">${fmt(R.k, 2)}</td><td class="num">${fmt(R.V, 1)}</td><td class="num"><b>${fmt(ratio, 2)}</b></td><td class="l">${ratio <= 1 + 1e-9 ? '<span class="pill ok">✓ Dispensa estribos</span>' : '<span class="pill bad">✕ Aumentar espessura</span>'}</td></tr>`;
+  });
+  return { html: h + '</tbody></table>', vMax: Math.max(...out) };
+}
+
+// Diagramas de momento (ELU, todas as ações majoradas), desenhados do lado tracionado.
+function armFigure(A, view) {
+  const ring = view === 'ring';
+  const W = 680, H = ring ? 430 : 480, mx = 130, my = 90;
+  const f = ring ? null : A.frames[view];
+  const spanX = ring ? A.ring.Lc : f.Ls, spanY = ring ? A.ring.Bc : f.Hc;
+  const sc = Math.min((W - 2 * mx) / spanX, (H - 2 * my) / spanY);
+  const x0 = (W - spanX * sc) / 2, y0 = (H - spanY * sc) / 2 - 8, x1 = x0 + spanX * sc, y1 = y0 + spanY * sc;
+  const mems = ring ? [
+    { e: A.ring.long, ax: t => [x0 + t * sc, y0], n: [0, 1], lab: true },
+    { e: A.ring.long, ax: t => [x0 + t * sc, y1], n: [0, -1], lab: false },
+    { e: A.ring.short, ax: t => [x0, y0 + t * sc], n: [1, 0], lab: true },
+    { e: A.ring.short, ax: t => [x1, y0 + t * sc], n: [-1, 0], lab: false }
+  ] : [
+    { e: f.top, ax: t => [x0 + t * sc, y0], n: [0, 1], lab: true },
+    { e: f.bot, ax: t => [x0 + t * sc, y1], n: [0, -1], lab: true },
+    { e: f.wall, ax: t => [x0, y0 + t * sc], n: [1, 0], lab: true },
+    { e: f.wall, ax: t => [x1, y0 + t * sc], n: [-1, 0], lab: false }
+  ];
+  const Mmax = Math.max(1e-9, ...mems.flatMap(o => o.e.Mall.map(Math.abs)));
+  const k = 54 / Mmax;
+  const P2 = a => a[0].toFixed(1) + ',' + a[1].toFixed(1);
+  let paths = '', labels = '';
+  mems.forEach(o => {
+    const e = o.e, ax = e.xs.map(o.ax);
+    const off = ax.map((a, i) => [a[0] + o.n[0] * e.Mall[i] * k, a[1] + o.n[1] * e.Mall[i] * k]);
+    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" fill="var(--accent)" fill-opacity=".16" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>`;
+    if (!o.lab) return;
+    let im = e.i0;
+    for (let i = e.i0; i <= e.i1; i++) if (e.Mall[i] > e.Mall[im]) im = i;
+    const pick = [e.i0, e.i1];
+    if (e.Mall[im] > 0 && Math.abs(im - e.i0) > 12 && Math.abs(im - e.i1) > 12) pick.push(im);
+    pick.forEach(i => {
+      const v = e.Mall[i], sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = o.n[1] * sg;
+      const hor = Math.abs(dx) > 0;
+      const x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
+      const anc = hor ? (dx > 0 ? 'start' : 'end') : 'middle';
+      labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anc}" font-size="12" font-family="var(--f-mono)" fill="var(--ink)">${fmt(Math.abs(v), 1)}</text>`;
+    });
+  });
+  const dimX = ring ? `L<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanX)} m (paredes longas)</tspan>` : `${view === 'B' ? 'B' : 'L'}<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanX)} m (eixos)</tspan>`;
+  const dimY = ring ? `B<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanY)} m (paredes curtas)</tspan>` : `H<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanY)} m</tspan>`;
+  const names = ring
+    ? [['parede longa', (x0 + x1) / 2, y0 - 66], ['parede curta', x0 - 72, (y0 + y1) / 2]]
+    : [['laje de topo', (x0 + x1) / 2, y0 - 66], ['laje de fundo', (x0 + x1) / 2, y1 + 74], [view === 'B' ? 'parede longa' : 'parede curta', x0 - 72, (y0 + y1) / 2]];
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de momentos fletores de cálculo, ${ring ? 'anel horizontal das paredes' : 'pórtico na direção ' + view}">
+    <rect x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>
+    ${paths}${labels}
+    <text x="${(x0 + x1) / 2}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" font-size="12" fill="var(--muted)">interior</text>
+    ${names.map(n => `<text x="${n[1].toFixed(1)}" y="${n[2].toFixed(1)}" text-anchor="middle" font-size="11.5" fill="var(--muted)" letter-spacing=".06em">${n[0].toUpperCase()}</text>`).join('')}
+    <text x="${W / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--muted)">${dimX}</text>
+    <text transform="translate(16 ${(y0 + y1) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">${dimY}</text>
+  </svg>`;
+}
+
+/* ---------- Interface ---------- */
+if (typeof document !== 'undefined') {
+  const KEY = 'flutuacao-em-caixas-v1';
+  const state = Object.assign({}, DEFAULTS);
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) Object.keys(DEFAULTS).forEach(k => { if (k in s && (typeof s[k] === typeof DEFAULTS[k] || (DEFAULTS[k] === null && (s[k] === null || typeof s[k] === 'number')))) state[k] = s[k]; }); } catch (e) {}
+  let stage = 'oper';
+  const el = id => document.getElementById(id);
+  const invalid = new Set();
+
+  const FMAP = Object.fromEntries(FIELDS.map(f => [f.key, f]));
+  function makeField(f) {
+    const box = document.createElement('div');
+    box.className = 'field';
+    box.id = 'box-' + f.key;
+    box.innerHTML = `<label for="in-${f.key}" title="${f.tip}">${f.lab}</label>
+      <div class="inp"><input id="in-${f.key}" type="text" inputmode="decimal" autocomplete="off" aria-label="${f.tip}" placeholder="${f.optional ? 'sem rebaixo' : ''}" value="${state[f.key] == null ? '' : fmt(state[f.key], decOf(f))}">${f.unit ? `<span class="u">${f.unit}</span>` : ''}</div>
+      <p class="err" hidden></p>`;
+    box.querySelector('input').addEventListener('input', e => {
+      const raw = e.target.value;
+      const v = (f.optional && raw.trim() === '') ? null : parseNum(raw);
+      const msg = (f.optional && v === null) ? '' : checkField(f, v);
+      box.classList.toggle('bad', !!msg);
+      const er = box.querySelector('.err'); er.hidden = !msg; er.textContent = msg;
+      if (msg) invalid.add(f.key); else { invalid.delete(f.key); state[f.key] = v; }
+      render();
+    });
+    return box;
+  }
+  LAYOUT.forEach(g => {
+    const wrap = document.createElement('div');
+    wrap.className = 'grp';
+    wrap.innerHTML = `<h3 class="gt">${g.title}</h3>`;
+    const cols = document.createElement('div');
+    cols.className = 'gcols c' + g.cols;
+    g.keys.forEach(k => cols.appendChild(makeField(FMAP[k])));
+    wrap.appendChild(cols);
+    if (g.check) {
+      const lab = document.createElement('label');
+      lab.className = 'check';
+      lab.innerHTML = `<input type="checkbox" id="${g.check.key}"><span>${g.check.text}</span>`;
+      const cb = lab.querySelector('input');
+      cb.checked = !!state[g.check.key];
+      cb.addEventListener('change', e => { state[g.check.key] = e.target.checked; render(); });
+      wrap.appendChild(lab);
+    }
+    if (g.note) wrap.insertAdjacentHTML('beforeend', `<p class="gnote">${g.note}</p>`);
+    el('f-' + g.sec).appendChild(wrap);
+  });
+  el('abaConstr').checked = !!state.abaConstr;
+  el('abaConstr').addEventListener('change', e => { state.abaConstr = e.target.checked; render(); });  el('reset').addEventListener('click', () => {
+    Object.assign(state, DEFAULTS);
+    invalid.clear();
+    FIELDS.forEach(f => {
+      el('in-' + f.key).value = state[f.key] == null ? '' : fmt(state[f.key], decOf(f));
+      el('box-' + f.key).classList.remove('bad'); el('box-' + f.key).querySelector('.err').hidden = true;
+    });
+    el('abaConstr').checked = true;
+    syncChecks();
+    render();
+  });
+  el('memorial').addEventListener('click', async () => {
+    const btn = el('memorial'), msg = el('memmsg'), lab = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Gerando memorial…'; msg.textContent = '';
+    try {
+      const bytes = await buildMemorial(Calc.compute(state));
+      const name = 'memorial-flutuacao-' + new Date().toISOString().slice(0, 10) + '.docx';
+      let done = false;
+      try {
+        const dl = window.claude && await window.claude.use('downloads');
+        if (dl) { await dl.save({ filename: name, data: bytes }); done = true; msg.textContent = 'Memorial gerado: ' + name; }
+      } catch (e) { if (e && e.code === 'declined') { done = true; msg.textContent = 'Download cancelado.'; } }
+      if (!done) {
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        msg.textContent = 'Memorial gerado: ' + name;
+      }
+    } catch (e) { msg.textContent = 'Não foi possível gerar o memorial neste navegador.'; }
+    btn.disabled = false; btn.textContent = lab;
+  });
+  // Aba Armaduras
+  const OVKEY = 'flutuacao-em-caixas-arm-ov', TABKEY = 'flutuacao-em-caixas-tab';
+  let armOv = {}, armView = 'B';
+  try { const o = JSON.parse(localStorage.getItem(OVKEY) || 'null'); if (o && typeof o === 'object') armOv = o; } catch (e) {}
+  const saveOv = () => { try { localStorage.setItem(OVKEY, JSON.stringify(armOv)); } catch (e) {} };
+  function syncChecks() { LAYOUT.forEach(g => { if (g.check) el(g.check.key).checked = !!state[g.check.key]; }); }
+  function setTab(t) {
+    el('tb-flut').setAttribute('aria-selected', String(t === 'flut'));
+    el('tb-arm').setAttribute('aria-selected', String(t === 'arm'));
+    el('tab-flut').hidden = t !== 'flut'; el('tab-arm').hidden = t !== 'arm';
+    try { localStorage.setItem(TABKEY, t); } catch (e) {}
+  }
+  el('tb-flut').addEventListener('click', () => setTab('flut'));
+  el('tb-arm').addEventListener('click', () => setTab('arm'));
+  el('go-flut').addEventListener('click', () => { setTab('flut'); window.scrollTo(0, 0); });
+  ['tb-flut', 'tb-arm'].forEach((id, i, a) => el(id).addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const o = a[1 - i]; el(o).focus(); el(o).click(); }
+  }));
+  try { if (localStorage.getItem(TABKEY) === 'arm') setTab('arm'); } catch (e) {}
+  ['B', 'L', 'ring'].forEach(v => el('av-' + v).addEventListener('click', () => {
+    armView = v;
+    ['B', 'L', 'ring'].forEach(w => el('av-' + w).setAttribute('aria-pressed', String(w === v)));
+    render();
+  }));
+  el('arm-table').addEventListener('change', e => {
+    const t = e.target; if (!t.dataset || !t.dataset.k) return;
+    const k = t.dataset.k, row = t.closest('tr');
+    const phi = parseFloat(row.querySelector('select[data-f="phi"]').value), s = parseFloat(row.querySelector('select[data-f="s"]').value);
+    armOv[k] = { phi, s }; saveOv(); render();
+  });
+  el('arm-sug').addEventListener('click', () => { armOv = {}; saveOv(); render(); });
+  el('arm-reset').addEventListener('click', () => {
+    ARM_KEYS.forEach(k => { state[k] = DEFAULTS[k]; invalid.delete(k); });
+    FIELDS.filter(f => ARM_KEYS.includes(f.key)).forEach(f => {
+      el('in-' + f.key).value = fmt(state[f.key], decOf(f));
+      el('box-' + f.key).classList.remove('bad'); el('box-' + f.key).querySelector('.err').hidden = true;
+    });
+    syncChecks(); armOv = {}; saveOv(); render();
+  });
+
+  function renderArm(m) {
+    el('arm-stale').hidden = invalid.size === 0;
+    el('arm-src').innerHTML = armSrcHtml(m);
+    const A = Arm.compute(m);
+    if (A.error) {
+      el('arm-warns').innerHTML = `<p>${A.error}</p>`;
+      ['arm-verd', 'arm-fig', 'arm-table', 'arm-shear', 'arm-loads', 'arm-figcap'].forEach(id => { el(id).innerHTML = ''; });
+      return;
+    }
+    const p = m.p, sel = {}, chk = {};
+    A.rows.forEach(r => {
+      const o = armOv[r.key];
+      const s = (o && Arm.BARS.includes(o.phi) && Arm.SPAC.includes(o.s)) ? { phi: o.phi, s: o.s, manual: true } : { phi: r.sug.phi, s: r.sug.s, manual: false };
+      sel[r.key] = s; chk[r.key] = Arm.check(r, s.phi, s.s, p, A.P);
+    });
+    const sh = armShearHtml(A, chk, p);
+    const vals = Object.values(chk);
+    el('arm-verd').innerHTML = armVerdictsHtml({
+      n: A.rows.length, nFlex: A.rows.filter(r => r.flex.ok && chk[r.key].okAs).length,
+      wMax: Math.max(...vals.map(c => c.c.wk)), wlim: p.wlim, vMax: sh.vMax
+    });
+    const w = [];
+    if (A.rows.some(r => !r.flex.ok)) w.push('Há faces em que x/d passa do limite da NBR 6118 (seria preciso armadura dupla): aumente a espessura do elemento ou o f<sub>ck</sub>.');
+    if (A.waterGov) w.push('Na laje de fundo governa a subpressão líquida, maior que a reação do terreno. Isso indica que a caixa tende a flutuar; confira a aba Flutuação.');
+    if (A.rows.some(r => !r.sug.found && !sel[r.key].manual)) w.push('Em alguma face nenhuma combinação de ø 8 a ø 20 com s de 10 a 20 cm atende A<sub>s,nec</sub> e w<sub>k,lim</sub>. A linha mostra a maior área disponível.');
+    if (p.bo > 0 && p.lo > 0) w.push('A abertura da laje de topo não entra no pórtico. Detalhe a armadura de reforço em volta dela à parte.');
+    if (p.zw > m.z.topTop) w.push('O nível d\'água está acima da laje de topo; a pressão da água sobre ela está incluída no peso saturado do solo.');
+    el('arm-warns').innerHTML = w.map(t => `<p>${t}</p>`).join('');
+    el('arm-fig').innerHTML = armFigure(A, armView);
+    el('arm-figcap').innerHTML = (armView === 'ring'
+      ? `Anel horizontal das paredes, em planta, na cota ${fz(-A.ring.d)} m. `
+      : `Pórtico fechado na direção ${armView} (faixa de 1 m, eixos). `) +
+      `Momentos de cálculo em kN·m/m com todas as ações majoradas (γ<sub>g</sub> e γ<sub>q</sub>), desenhados do lado tracionado; os valores das extremidades estão na face dos apoios. O dimensionamento usa a envoltória.`;
+    el('arm-table').innerHTML = armTableHtml(A, sel, chk);
+    el('arm-shear').innerHTML = sh.html;
+    el('arm-loads').innerHTML = armLoadsHtml(m, A);
+  }
+
+  const setStage = s => {
+    stage = s;
+    el('st-oper').setAttribute('aria-pressed', String(s === 'oper'));
+    el('st-constr').setAttribute('aria-pressed', String(s === 'constr'));
+    render();
+  };
+  el('st-oper').addEventListener('click', () => setStage('oper'));
+  el('st-constr').addEventListener('click', () => setStage('constr'));
+
+  function render() {
+    el('stale').hidden = invalid.size === 0;
+    const m = Calc.compute(state);
+    el('warns').innerHTML = warningsFor(m).map(t => `<p>${t}</p>`).join('');
+    el('verdicts').innerHTML =
+      stageCard('Etapa construtiva', m.subC.rebaixo ? `Sem laje de topo; lençol rebaixado a ${fz(m.subC.zw)} m` : 'Sem laje de topo e sem solo sobre ela', m.constr, m) +
+      stageCard('Etapa de operação', 'Caixa completa, com solo sobre a laje de topo', m.oper, m);
+    el('calc').innerHTML = stageCalc('Etapa construtiva', m.constr, m) + stageCalc('Etapa de operação', m.oper, m);
+    el('fig').innerHTML = drawSection(m, stage === 'oper');
+    el('figcap').textContent = 'Seção transversal pela largura B, em escala, na etapa ' + (stage === 'oper' ? 'de operação' : 'construtiva') + '. O diagrama de empuxo é esquemático e não é resultado de dimensionamento.';
+    el('weights').innerHTML = weightsTable(m);
+    el('summary').innerHTML = summaryHtml(m);
+    renderArm(m);
+    if (invalid.size === 0) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  }
+  render();
+} else if (typeof globalThis !== 'undefined') {
+  globalThis.__test = { Calc, Arm, drawSection, fmt, DEFAULTS, FIELDS, LAYOUT, weightsTable, stageCard, stageCalc, summaryHtml, warningsFor };
+}
+</script>
+
+</body></html>
