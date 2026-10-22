@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Flutuação em Caixas</title>
+<title>Flutuação em Caixas v2</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -209,7 +209,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v1.0 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v2.0 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -312,11 +312,17 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
       <section class="panel" aria-label="Diagramas de momento">
         <div class="panel-head">
-          <h2><span class="n">E</span>Momentos fletores de cálculo</h2>
+          <h2><span class="n">E</span>Esforços de cálculo</h2>
+          <div class="btnrow">
+          <div class="seg" role="group" aria-label="Esforço exibido">
+            <button type="button" id="ak-M" aria-pressed="true">Momento fletor</button>
+            <button type="button" id="ak-V" aria-pressed="false">Esforço cortante</button>
+          </div>
           <div class="seg" role="group" aria-label="Diagrama exibido">
             <button type="button" id="av-B" aria-pressed="true">Direção B</button>
             <button type="button" id="av-L" aria-pressed="false">Direção L</button>
             <button type="button" id="av-ring" aria-pressed="false">Paredes, horizontal</button>
+          </div>
           </div>
         </div>
         <figure style="margin:0"><div class="figscroll armfig" id="arm-fig"></div><figcaption id="arm-figcap"></figcaption></figure>
@@ -342,11 +348,11 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <details class="panel">
         <summary>Método e limitações</summary>
         <ul class="lim">
-          <li>Pórtico fechado por faixa de 1 m nas direções B e L (lajes e flexão vertical das paredes), pelos eixos dos elementos, sem deslocabilidade (carregamento simétrico). Flexão horizontal das paredes por um anel em planta, com a pressão da face superior da laje de fundo.</li>
+          <li>Pórtico fechado por faixa de 1 m nas direções B e L (lajes e flexão vertical das paredes), resolvido por elementos finitos de barra pelos eixos, em meio modelo com simetria. A laje de fundo e a aba ficam sobre molas de Winkler (k<sub>v</sub>), só de compressão. Flexão horizontal das paredes por um anel em planta, com a pressão da face superior da laje de fundo.</li>
           <li>Sem repartição, cada faixa recebe a carga inteira nas duas direções (a favor da segurança). Com repartição, usa-se a grelha simplificada k = l<sub>y</sub><sup>4</sup> ÷ (l<sub>x</sub><sup>4</sup> + l<sub>y</sub><sup>4</sup>), que não substitui o cálculo de placas.</li>
-          <li>Envoltória ELU: permanentes com γ = 1,0 ou γ<sub>g</sub> e sobrecarga com 0 ou γ<sub>q</sub>, o que for desfavorável em cada seção. ELS: permanentes + ψ<sub>1</sub> · sobrecarga.</li>
+          <li>Envoltória ELU: as 16 combinações das ações (permanentes verticais, empuxo e água, sobrecarga vertical, sobrecarga lateral), com γ = 1,0 ou γ<sub>g</sub> nas permanentes e 0 ou γ<sub>q</sub> na sobrecarga, cada uma resolvida com as molas. ELS: permanentes + ψ<sub>1</sub> · sobrecarga. Módulo E<sub>cs</sub> do concreto.</li>
           <li>Momentos negativos tomados na face dos apoios. Esforços normais desprezados no dimensionamento (compressão nas lajes e paredes, a favor da segurança na flexão).</li>
-          <li>Reação do terreno uniforme sob a laje de fundo. A aba, a abertura e a chaminé da laje de topo não entram no pórtico.</li>
+          <li>A aba entra como balanço da laje de fundo, com o solo (tensão total) e a sobrecarga sobre ela e a subpressão por baixo. A abertura e a chaminé da laje de topo não entram no pórtico. A subpressão atua em toda a largura da laje de fundo, inclusive na aba.</li>
           <li>Não verifica: etapa construtiva (paredes em balanço antes da laje de topo), caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, ancoragem e detalhamento dos cantos.</li>
           <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária.</li>
         </ul>
@@ -472,15 +478,15 @@ const Calc = (function () {
 })();
 
 /* ---------- Dimensionamento das armaduras (funções puras) ---------- */
-// Faixa de 1 m. Pórtico fechado nas direções B e L (lajes e flexão vertical das paredes) e anel
-// horizontal na base das paredes (flexão horizontal). Unidades: kN, m; seções em cm.
+// v2: pórtico plano por elementos finitos (meio modelo, simetria), laje de fundo e aba sobre molas
+// de Winkler só de compressão. Faixa de 1 m nas direções B e L; anel horizontal para as paredes.
+// Unidades: kN, m; seções em cm.
 const Arm = (function () {
   const BARS = [8, 10, 12.5, 16, 20];
   const SPAC = [20, 17.5, 15, 12.5, 10];
   const barA = phi => Math.PI * Math.pow(phi / 10, 2) / 4;   // cm²
   const N = 160;
-  const COMP = ['Vg', 'Lg', 'Qv', 'Ql'];                       // vertical perm., lateral perm., sobrecarga vertical, sobrecarga lateral
-  const PERM = [true, true, false, false];
+  const PERM = [true, true, false, false];                     // Vg, Lg, Qv, Ql
 
   function mat(p) {
     const fck = p.fck;
@@ -543,60 +549,149 @@ const Arm = (function () {
     return all.length ? Object.assign({ found: false }, all[0]) : { phi: 10, s: 10, As: barA(10) * 10, found: false };
   }
 
-  // Integração numérica de um elemento biengastado/elástico. w(x) = carga "para baixo" no eixo local.
-  function fem(L, wf) {
-    let a = 0, b = 0; const n = 400, h = L / n;
-    for (let i = 0; i <= n; i++) {
-      const x = i * h, c = (i === 0 || i === n) ? 0.5 : 1, w = wf(x) * c * h;
-      a += w * x * (L - x) * (L - x) / (L * L); b += w * x * x * (L - x) / (L * L);
+  /* ----- Elementos finitos de pórtico plano (Euler-Bernoulli), com fundação de Winkler ----- */
+  // Local: x de i para j; y à esquerda. Momento interno positivo traciona a face −y (à direita do percurso).
+  function kLocal(L, EA, EI, kw) {
+    const a = EA / L, b = 12 * EI / (L * L * L), c = 6 * EI / (L * L), d = 4 * EI / L, e = 2 * EI / L;
+    const K = [
+      [a, 0, 0, -a, 0, 0],
+      [0, b, c, 0, -b, c],
+      [0, c, d, 0, -c, e],
+      [-a, 0, 0, a, 0, 0],
+      [0, -b, -c, 0, b, -c],
+      [0, c, e, 0, -c, d]];
+    if (kw > 0) {
+      const f = kw * L / 420, id = [1, 2, 4, 5];
+      const W = [[156, 22 * L, 54, -13 * L], [22 * L, 4 * L * L, 13 * L, -3 * L * L], [54, 13 * L, 156, -22 * L], [-13 * L, -3 * L * L, -22 * L, 4 * L * L]];
+      for (let r = 0; r < 4; r++) for (let q = 0; q < 4; q++) K[id[r]][id[q]] += f * W[r][q];
     }
-    return { i: -a, j: b };   // momentos de engastamento, horário positivo
+    return K;
   }
-  // Diagramas com momentos de extremidade Mi, Mj (horário positivo). M positivo = tração na face "inferior" local.
-  function member(L, wf, Mi, Mj) {
-    const xs = [], w = [];
-    for (let i = 0; i <= N; i++) { const x = L * i / N; xs.push(x); w.push(wf(x)); }
-    const h = L / N; let W = 0, S = 0; const Wc = [0], Sc = [0];
-    for (let i = 1; i <= N; i++) { W += (w[i - 1] + w[i]) / 2 * h; S += (w[i - 1] * xs[i - 1] + w[i] * xs[i]) / 2 * h; Wc.push(W); Sc.push(S); }
-    const RA = (W * L - S) / L;
-    return {
-      xs,
-      M: xs.map((x, i) => RA * x - (x * Wc[i] - Sc[i]) + Mi * (1 - x / L) - Mj * x / L),
-      V: xs.map((x, i) => RA - Wc[i] - (Mi + Mj) / L)
-    };
+  // Cargas distribuídas globais (qx, qy) lineares de i a j → forças nodais equivalentes locais.
+  function fLocal(L, c, s, q) {
+    const qa1 = c * q[0] + s * q[1], qa2 = c * q[2] + s * q[3];
+    const qt1 = -s * q[0] + c * q[1], qt2 = -s * q[2] + c * q[3];
+    return [L * (2 * qa1 + qa2) / 6, L * (7 * qt1 + 3 * qt2) / 20, L * L * (3 * qt1 + 2 * qt2) / 60,
+      L * (qa1 + 2 * qa2) / 6, L * (3 * qt1 + 7 * qt2) / 20, -L * L * (2 * qt1 + 3 * qt2) / 60];
   }
-  // Pórtico fechado simétrico (deslocabilidade nula): rotações θA (canto superior) e θB (canto inferior).
-  function solveFrame(Ls, Hc, It, Iw, Ib, qt, qb, pl) {
-    const wt = () => qt, wb = () => -qb, ww = y => -pl(y);
-    const Ft = fem(Ls, wt), Fb = fem(Ls, wb), Fw = fem(Hc, ww);
-    const kt = 2 * It / Ls, kb = 2 * Ib / Ls, kw = 2 * Iw / Hc;
-    const a11 = kt + 2 * kw, a12 = kw, a22 = kb + 2 * kw;
-    const r1 = -(Ft.i + Fw.i), r2 = -(Fb.i + Fw.j), det = a11 * a22 - a12 * a12;
-    const tA = (r1 * a22 - a12 * r2) / det, tB = (a11 * r2 - a12 * r1) / det;
-    const MtI = Ft.i + kt * tA, MwI = Fw.i + kw * (2 * tA + tB), MwJ = Fw.j + kw * (2 * tB + tA), MbI = Fb.i + kb * tB;
-    const top = member(Ls, wt, MtI, -MtI), wall = member(Hc, ww, MwI, MwJ), bot = member(Ls, wb, MbI, -MbI);
-    // Convenção de saída: M > 0 traciona a face interna da caixa.
-    wall.M = wall.M.map(v => -v); bot.M = bot.M.map(v => -v);
-    return { top, wall, bot };
+  const toLocal = (c, s, g) => [c * g[0] + s * g[1], -s * g[0] + c * g[1], g[2], c * g[3] + s * g[4], -s * g[3] + c * g[4], g[5]];
+  const toGlobal = (c, s, l) => [c * l[0] - s * l[1], s * l[0] + c * l[1], l[2], c * l[3] - s * l[4], s * l[3] + c * l[4], l[5]];
+
+  function gauss(A, b) {
+    const n = b.length;
+    for (let k = 0; k < n; k++) {
+      let piv = k, mx = Math.abs(A[k][k]);
+      for (let i = k + 1; i < n; i++) if (Math.abs(A[i][k]) > mx) { mx = Math.abs(A[i][k]); piv = i; }
+      if (mx < 1e-14) return null;
+      if (piv !== k) { [A[k], A[piv]] = [A[piv], A[k]]; [b[k], b[piv]] = [b[piv], b[k]]; }
+      const akk = A[k][k];
+      for (let i = k + 1; i < n; i++) {
+        const f = A[i][k] / akk; if (f === 0) continue;
+        const Ai = A[i], Ak = A[k];
+        for (let j = k; j < n; j++) Ai[j] -= f * Ak[j];
+        b[i] -= f * b[k];
+      }
+    }
+    const x = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let j = i + 1; j < n; j++) s -= A[i][j] * x[j]; x[i] = s / A[i][i]; }
+    return x;
   }
 
-  // Envoltória: cada ação permanente com γ = 1,0 ou γg; cada variável com 0 ou γq, o que for desfavorável.
-  function envelope(comps, G, i0, i1) {
-    const n = comps.length;
-    const at = (i, key) => comps.map(c => c[key][i]);
-    const comb = (vals, sign) => vals.reduce((s, v, k) => s + ((v * sign > 0) ? G.max[k] * v : G.min[k] * v), 0);
-    const ser = (vals, sign) => vals.reduce((s, v, k) => s + (PERM[k] ? v : ((v * sign > 0) ? G.psi * v : 0)), 0);
-    let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
-    for (let i = i0; i <= i1; i++) {
-      const m = at(i, 'M');
-      Mdi = Math.max(Mdi, comb(m, 1)); Mde = Math.max(Mde, -comb(m, -1));
-      Msi = Math.max(Msi, ser(m, 1)); Mse = Math.max(Mse, -ser(m, -1));
+  // model: nodes [[x,y]], elems [{i,j,EA,EI,kw}], fix [[node,dof]], loads: {el: [[qx1,qy1,qx2,qy2] por elemento], pt: [[node,fx,fy]]}
+  function solveFE(model, loads) {
+    const nn = model.nodes.length, nd = 3 * nn;
+    const geo = model.elems.map(e => {
+      const [x1, y1] = model.nodes[e.i], [x2, y2] = model.nodes[e.j];
+      const L = Math.hypot(x2 - x1, y2 - y1);
+      return { L, c: (x2 - x1) / L, s: (y2 - y1) / L };
+    });
+    const fixed = new Set(model.fix.map(([n, d]) => 3 * n + d));
+    let active = model.elems.map(e => e.kw > 0);
+    let u = null, it = 0, floated = false;
+    for (; it < 40; it++) {
+      const K = Array.from({ length: nd }, () => new Float64Array(nd)), F = new Float64Array(nd);
+      model.elems.forEach((e, k) => {
+        const g = geo[k], Kl = kLocal(g.L, e.EA, e.EI, active[k] ? e.kw : 0);
+        const dofs = [3 * e.i, 3 * e.i + 1, 3 * e.i + 2, 3 * e.j, 3 * e.j + 1, 3 * e.j + 2];
+        // Kg = Tᵀ Kl T
+        const T = [[g.c, g.s, 0, 0, 0, 0], [-g.s, g.c, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0], [0, 0, 0, g.c, g.s, 0], [0, 0, 0, -g.s, g.c, 0], [0, 0, 0, 0, 0, 1]];
+        const KT = Kl.map(r => T[0].map((_, q) => r.reduce((s, v, m) => s + v * T[m][q], 0)));
+        for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) {
+          let s = 0; for (let m = 0; m < 6; m++) s += T[m][a] * KT[m][b];
+          K[dofs[a]][dofs[b]] += s;
+        }
+        const q = loads.el[k];
+        if (q) { const fg = toGlobal(g.c, g.s, fLocal(g.L, g.c, g.s, q)); for (let a = 0; a < 6; a++) F[dofs[a]] += fg[a]; }
+      });
+      loads.pt.forEach(([n, fx, fy]) => { F[3 * n] += fx; F[3 * n + 1] += fy; });
+      // molas residuais mínimas evitam singularidade se todas forem desligadas
+      if (!active.some(a => a)) { floated = true; model.elems.forEach((e, k) => { if (e.kw > 0) { K[3 * e.i + 1][3 * e.i + 1] += 1e-6 * e.kw; K[3 * e.j + 1][3 * e.j + 1] += 1e-6 * e.kw; } }); }
+      fixed.forEach(d => { for (let j = 0; j < nd; j++) { K[d][j] = 0; K[j][d] = 0; } K[d][d] = 1; F[d] = 0; });
+      u = gauss(K.map(r => Array.from(r)), Array.from(F));
+      if (!u) return null;
+      let changed = false;
+      const next = model.elems.map((e, k) => {
+        if (!(e.kw > 0)) return false;
+        const w = (u[3 * e.i + 1] + u[3 * e.j + 1]) / 2;      // > 0: laje subiu, mola tracionada
+        return w <= 0;
+      });
+      next.forEach((v, k) => { if (v !== active[k]) changed = true; });
+      if (!changed) break;
+      active = next;
     }
-    [i0, i1].forEach(i => { const v = at(i, 'V'); Vd = Math.max(Vd, Math.abs(comb(v, 1)), Math.abs(comb(v, -1))); });
-    const Mall = comps[0].M.map((_, i) => comps.reduce((s, c, k) => s + G.max[k] * c.M[i], 0));
-    return { Mdi, Mde, Msi, Mse, Vd, Mall, xs: comps[0].xs, i0, i1, n };
+    // esforços internos nas extremidades
+    const ends = model.elems.map((e, k) => {
+      const g = geo[k], Kl = kLocal(g.L, e.EA, e.EI, active[k] ? e.kw : 0);
+      const ug = [u[3 * e.i], u[3 * e.i + 1], u[3 * e.i + 2], u[3 * e.j], u[3 * e.j + 1], u[3 * e.j + 2]];
+      const ul = toLocal(g.c, g.s, ug);
+      const fe = loads.el[k] ? fLocal(g.L, g.c, g.s, loads.el[k]) : [0, 0, 0, 0, 0, 0];
+      const f = Kl.map((r, a) => r.reduce((s, v, m) => s + v * ul[m], 0) - fe[a]);
+      return { Mi: -f[2], Mj: f[5], Vi: f[1], Vj: -f[4], Ni: -f[0], Nj: f[3] };
+    });
+    const uplift = model.elems.some((e, k) => e.kw > 0 && !active[k]);
+    return { u, ends, active, uplift, floated, iters: it };
   }
-  const idx = (L, x) => Math.min(N, Math.max(0, x / L * N));
+
+  // Valores nodais ao longo de um membro (sequência de elementos encadeados)
+  function memberValues(model, sol, list) {
+    const M = [], V = [], pts = [];
+    list.forEach((k, idx) => {
+      const e = model.elems[k], r = sol.ends[k];
+      if (idx === 0) { M.push(r.Mi); V.push(r.Vi); pts.push(model.nodes[e.i]); }
+      M.push(r.Mj); V.push(r.Vj); pts.push(model.nodes[e.j]);
+    });
+    return { M, V, pts };
+  }
+
+  // Monta o meio modelo de uma direção (eixo de simetria em x = 0).
+  function buildModel(o) {
+    const { S, Hc, ep, es, ei, ba, E, kv } = o;
+    const xw = S / 2, xin = xw - ep / 2, xout = xw + ep / 2, xtip = xout + ba;
+    const h = 0.08;
+    const nodes = [], elems = [], key = new Map();
+    const node = (x, y) => { const k = x.toFixed(6) + ',' + y.toFixed(6); if (key.has(k)) return key.get(k); nodes.push([x, y]); key.set(k, nodes.length - 1); return nodes.length - 1; };
+    const seg = (a, b, t, kw, tag) => {      // a, b: [x,y]; devolve índices de elementos
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 1e-9) return [];
+      const n = Math.max(1, Math.ceil(L / h)), out = [];
+      for (let i = 0; i < n; i++) {
+        const p = [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], q = [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n];
+        elems.push({ i: node(p[0], p[1]), j: node(q[0], q[1]), EA: E * t, EI: E * t * t * t / 12, kw, tag });
+        out.push(elems.length - 1);
+      }
+      return out;
+    };
+    // percursos com a face interna (ou superior, na aba) à direita: M > 0 traciona essa face
+    const top = [...seg([0, Hc], [xin, Hc], es, 0, 'top'), ...seg([xin, Hc], [xw, Hc], es, 0, 'top')];
+    const wall = [...seg([xw, Hc], [xw, Hc - es / 2], ep, 0, 'wall'), ...seg([xw, Hc - es / 2], [xw, ei / 2], ep, 0, 'wall'), ...seg([xw, ei / 2], [xw, 0], ep, 0, 'wall')];
+    const aba = [...seg([xtip, 0], [xout, 0], ei, kv, 'aba'), ...seg([xout, 0], [xw, 0], ei, kv, 'bot')];
+    const bot = [...seg([xw, 0], [xin, 0], ei, kv, 'bot'), ...seg([xin, 0], [0, 0], ei, kv, 'bot')];
+    const nTopC = node(0, Hc), nBotC = node(0, 0);
+    return {
+      nodes, elems, fix: [[nTopC, 0], [nTopC, 2], [nBotC, 0], [nBotC, 2]],
+      top, wall, bottom: aba.concat(bot), geo: { xw, xin, xout, xtip, S, Hc }
+    };
+  }
 
   function compute(m) {
     const p = m.p, P = mat(p), z = m.z;
@@ -612,50 +707,120 @@ const Arm = (function () {
     const sh = d => Math.max(0, K * sv(d) - cTerm);
     const pg = d => sh(d) + uw(d);
     const pqL = K * p.q;
+    const E = P.Ecs * 1000;                                                   // kN/m²
 
     // Cargas verticais (kN/m²)
     const cover = Math.max(0, -z.topTop);
     const qtSelf = p.gc * p.es, qtSoil = svT(cover), qtg = qtSelf + qtSoil;
-    const wallsW = p.gc * p.ep * Hc * 2 * (Bc + Lc) / (Bc * Lc);
-    const qbEq = qtg + wallsW;
-    const uBase = uw(-z.base), qbWat = uBase - p.gc * p.ei;
-    const waterGov = qbWat > qbEq;
-    const qbg = Math.max(qbEq, qbWat);
+    const dAba = Math.max(0, -z.botTop), qAbaSoil = svT(dAba);
+    const qbSelf = p.gc * p.ei, wallW = p.gc * p.ep;
+    const uBase = uw(-z.base);
 
-    // Repartição entre direções (opcional)
     const L4 = x => Math.pow(x, 4);
     const ksB = p.split ? L4(Lc) / (L4(Bc) + L4(Lc)) : 1, ksL = p.split ? L4(Bc) / (L4(Bc) + L4(Lc)) : 1;
     const kvLong = p.split ? L4(Lc) / (L4(Lc) + L4(Hc)) : 1, kvShort = p.split ? L4(Bc) / (L4(Bc) + L4(Hc)) : 1;
     const khLong = p.split ? 1 - kvLong : 1, khShort = p.split ? 1 - kvShort : 1;
-
-    const It = Math.pow(p.es, 3) / 12, Ib = Math.pow(p.ei, 3) / 12, Iw = Math.pow(p.ep, 3) / 12;
     const dA = -(z.topTop - p.es / 2), dB = dA + Hc;
     const G = { min: [1, 1, 0, 0], max: [p.gg, p.gg, p.gq, p.gq], psi: p.psi1 };
 
-    function frame(Ls, ks, kv) {
-      const loads = [
-        { qt: qtg * ks, qb: qbg * ks, pl: () => 0 },
-        { qt: 0, qb: 0, pl: y => kv * pg(dA + y) },
-        { qt: p.q * ks, qb: p.q * ks, pl: () => 0 },
-        { qt: 0, qb: 0, pl: () => kv * pqL }
-      ];
-      const sol = loads.map(l => solveFrame(Ls, Hc, It, Iw, Ib, l.qt, l.qb, l.pl));
-      const fs = idx(Ls, p.ep / 2), fe = idx(Ls, Ls - p.ep / 2);
-      const ws = idx(Hc, p.es / 2), we = idx(Hc, Hc - p.ei / 2);
+    // combinações: ELU (todas as escolhas favorável/desfavorável), ELS frequente, característica
+    const elu = [];
+    for (let a = 0; a < 16; a++) elu.push([0, 1, 2, 3].map(k => (a >> k) & 1 ? G.max[k] : G.min[k]));
+    const els = [[1, 1, 0, 0], [1, 1, p.psi1, 0], [1, 1, 0, p.psi1], [1, 1, p.psi1, p.psi1]];
+    const allMax = G.max.slice(), carac = [1, 1, 1, 1];
+
+    function frame(S, ks, kv) {
+      const md = buildModel({ S, Hc, ep: p.ep, es: p.es, ei: p.ei, ba: p.ba, E, kv: p.kv });
+      const g = md.geo, Y = md.nodes;
+      // cargas por componente: [elementos], [pontuais]
+      const comp = [0, 1, 2, 3].map(() => ({ el: md.elems.map(() => null), pt: [] }));
+      const add = (c, k, q) => { const o = comp[c].el; o[k] = o[k] ? o[k].map((v, i) => v + q[i]) : q.slice(); };
+      md.elems.forEach((e, k) => {
+        const [x1, y1] = Y[e.i], [x2, y2] = Y[e.j], xm = (x1 + x2) / 2;
+        if (e.tag === 'top') { add(0, k, [0, -qtg * ks, 0, -qtg * ks]); add(2, k, [0, -p.q * ks, 0, -p.q * ks]); }
+        if (e.tag === 'wall') {
+          const pr = y => kv * pg(dA + (Hc - y));
+          add(0, k, [0, -wallW * ks, 0, -wallW * ks]);
+          add(1, k, [-pr(y1), 0, -pr(y2), 0]);
+          add(3, k, [-kv * pqL, 0, -kv * pqL, 0]);
+        }
+        if (e.tag === 'bot' || e.tag === 'aba') {
+          const net = (-qbSelf + uBase) * ks;
+          add(0, k, [0, net, 0, net]);
+          if (xm > g.xout + 1e-9) { add(0, k, [0, -qAbaSoil * ks, 0, -qAbaSoil * ks]); add(2, k, [0, -p.q * ks, 0, -p.q * ks]); }
+        }
+      });
+      // faixa da laje de topo entre o eixo e a face externa da parede, levada ao nó do canto
+      const nCorner = md.elems[md.top[md.top.length - 1]].j;
+      comp[0].pt.push([nCorner, 0, -qtg * ks * p.ep / 2]);
+      comp[2].pt.push([nCorner, 0, -p.q * ks * p.ep / 2]);
+
+      const combine = gm => ({
+        el: md.elems.map((_, k) => { let r = null; comp.forEach((c, i) => { if (c.el[k]) { const v = c.el[k].map(x => x * gm[i]); r = r ? r.map((a, j) => a + v[j]) : v; } }); return r; }),
+        pt: comp.flatMap((c, i) => c.pt.map(([n, fx, fy]) => [n, fx * gm[i], fy * gm[i]]))
+      });
+      const run = gm => {
+        const sol = solveFE(md, combine(gm));
+        if (!sol) return null;
+        return { sol, top: memberValues(md, sol, md.top), wall: memberValues(md, sol, md.wall), bottom: memberValues(md, sol, md.bottom) };
+      };
+      const rE = elu.map(run), rS = els.map(run), rD = run(allMax), rC = run(carac);
+      if (rE.some(r => !r) || rS.some(r => !r) || !rD || !rC) return { error: true };
+
+      // regiões de dimensionamento: índices nodais em cada membro
+      const near = (a, b) => Math.abs(a - b) < 1e-6;
+      const idxBy = (pts, f) => pts.map((q, i) => f(q) ? i : -1).filter(i => i >= 0);
+      const tp = rD.top.pts, wp = rD.wall.pts, bp = rD.bottom.pts;
+      const reg = {
+        top: { mem: 'top', ids: idxBy(tp, q => q[0] <= g.xin + 1e-6), faces: idxBy(tp, q => near(q[0], g.xin)) },
+        wall: { mem: 'wall', ids: idxBy(wp, q => q[1] <= Hc - p.es / 2 + 1e-6 && q[1] >= p.ei / 2 - 1e-6), faces: idxBy(wp, q => near(q[1], Hc - p.es / 2) || near(q[1], p.ei / 2)) },
+        bot: { mem: 'bottom', ids: idxBy(bp, q => q[0] <= g.xin + 1e-6), faces: idxBy(bp, q => near(q[0], g.xin)) },
+        aba: { mem: 'bottom', ids: idxBy(bp, q => q[0] >= g.xout - 1e-6), faces: idxBy(bp, q => near(q[0], g.xout)) }
+      };
+      // em nós compartilhados (face), o valor do elemento interno à região
+      const env = r => {
+        let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
+        rE.forEach(x => { const v = x[r.mem]; r.ids.forEach(i => { Mdi = Math.max(Mdi, v.M[i]); Mde = Math.max(Mde, -v.M[i]); }); r.faces.forEach(i => { Vd = Math.max(Vd, Math.abs(v.V[i])); }); });
+        rS.forEach(x => { const v = x[r.mem]; r.ids.forEach(i => { Msi = Math.max(Msi, v.M[i]); Mse = Math.max(Mse, -v.M[i]); }); });
+        return { Mdi, Mde, Msi, Mse, Vd };
+      };
+      // pressão de contato no solo (característica): p = −k·w nos elementos ativos
+      const contact = md.bottom.map(k => {
+        const e = md.elems[k], s = rC.sol, w = (s.u[3 * e.i + 1] + s.u[3 * e.j + 1]) / 2;
+        return { x: (md.nodes[e.i][0] + md.nodes[e.j][0]) / 2, p: s.active[k] ? Math.max(0, -p.kv * w) : 0, w };
+      });
       return {
-        Ls, Hc, loads,
-        top: envelope(sol.map(s => s.top), G, Math.ceil(fs), Math.floor(fe)),
-        wall: envelope(sol.map(s => s.wall), G, Math.ceil(ws), Math.floor(we)),
-        bot: envelope(sol.map(s => s.bot), G, Math.ceil(fs), Math.floor(fe))
+        S, Hc, geo: g, ks, kv,
+        top: env(reg.top), wall: env(reg.wall), bot: env(reg.bot), aba: p.ba > 0 ? env(reg.aba) : null,
+        draw: { top: rD.top, wall: rD.wall, bottom: rD.bottom, reg },
+        uplift: rE.some(x => x.sol.uplift) || rS.some(x => x.sol.uplift), floated: rE.some(x => x.sol.floated),
+        upliftC: rC.sol.uplift,
+        pMax: Math.max(...contact.map(c => c.p)), pMin: Math.min(...contact.filter((c, i) => true).map(c => c.p)), wMax: Math.max(...contact.map(c => -c.w)) * 1000
       };
     }
     const fB = frame(Bc, ksB, kvLong), fL = frame(Lc, ksL, kvShort);
+    if (fB.error || fL.error) return { error: 'O sistema não pôde ser resolvido. Confira a geometria e o coeficiente de mola.' };
 
-    // Anel horizontal na cota da face superior da laje inferior (maior pressão no vão livre da parede)
+    // Anel horizontal na cota da face superior da laje inferior
     const dRing = -z.botTop;
     const pRing = [0, pg(dRing), 0, pqL];
+    function envelope(comps, i0, i1) {
+      const comb = (vals, sign) => vals.reduce((s, v, k) => s + ((v * sign > 0) ? G.max[k] * v : G.min[k] * v), 0);
+      const ser = (vals, sign) => vals.reduce((s, v, k) => s + (PERM[k] ? v : ((v * sign > 0) ? G.psi * v : 0)), 0);
+      const at = (i, key) => comps.map(c => c[key][i]);
+      let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
+      for (let i = i0; i <= i1; i++) {
+        const mm = at(i, 'M');
+        Mdi = Math.max(Mdi, comb(mm, 1)); Mde = Math.max(Mde, -comb(mm, -1));
+        Msi = Math.max(Msi, ser(mm, 1)); Mse = Math.max(Mse, -ser(mm, -1));
+      }
+      [i0, i1].forEach(i => { const v = at(i, 'V'); Vd = Math.max(Vd, Math.abs(comb(v, 1)), Math.abs(comb(v, -1))); });
+      const all = key => comps[0][key].map((_, i) => comps.reduce((s, c, k) => s + G.max[k] * c[key][i], 0));
+      return { Mdi, Mde, Msi, Mse, Vd, Mall: all('M'), Vall: all('V'), xs: comps[0].xs, i0, i1 };
+    }
+    const idx = (L, x) => Math.min(N, Math.max(0, x / L * N));
     function ring() {
-      const mk = (L, kh, other, khO) => pRing.map(pc => {
+      const mk = (L, kh, khO) => pRing.map(pc => {
         const pa = kh * pc, pb = khO * pc;
         const Mc = (L === Lc ? (pa * Lc * Lc * Lc + pb * Bc * Bc * Bc) : (pb * Lc * Lc * Lc + pa * Bc * Bc * Bc)) / (12 * (Lc + Bc));
         const xs = [], M = [], V = [];
@@ -663,40 +828,39 @@ const Arm = (function () {
         return { xs, M, V };
       });
       const lo = c => Math.ceil(idx(c, p.ep / 2)), hi = c => Math.floor(idx(c, c - p.ep / 2));
-      return {
-        Lc, Bc, d: dRing,
-        long: envelope(mk(Lc, khLong, Bc, khShort), G, lo(Lc), hi(Lc)),
-        short: envelope(mk(Bc, khShort, Lc, khLong), G, lo(Bc), hi(Bc))
-      };
+      return { Lc, Bc, d: dRing, long: envelope(mk(Lc, khLong, khShort), lo(Lc), hi(Lc)), short: envelope(mk(Bc, khShort, khLong), lo(Bc), hi(Bc)) };
     }
     const rg = ring();
 
     // Posições de armadura
-    const F = { top: ['inferior (interna)', 'superior (externa)'], bot: ['superior (interna)', 'inferior (externa)'], wall: ['interna', 'externa'] };
+    const F = { top: ['inferior (interna)', 'superior (externa)'], bot: ['superior (interna)', 'inferior (externa)'], aba: ['superior', 'inferior'], wall: ['interna', 'externa'] };
     const groups = [
       { key: 'top', name: 'Laje de topo', h: p.es, items: [['top-B', 'Paralela a B', fB.top, F.top], ['top-L', 'Paralela a L', fL.top, F.top]] },
-      { key: 'bot', name: 'Laje de fundo', h: p.ei, items: [['bot-B', 'Paralela a B', fB.bot, F.bot], ['bot-L', 'Paralela a L', fL.bot, F.bot]] },
-      { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, items: [['wl-v', 'Vertical', fB.wall, F.wall], ['wl-h', 'Horizontal', rg.long, F.wall]] },
-      { key: 'ws', name: 'Paredes curtas (ao longo de B)', h: p.ep, items: [['ws-v', 'Vertical', fL.wall, F.wall], ['ws-h', 'Horizontal', rg.short, F.wall]] }
+      { key: 'bot', name: 'Laje de fundo (vão interno)', h: p.ei, items: [['bot-B', 'Paralela a B', fB.bot, F.bot], ['bot-L', 'Paralela a L', fL.bot, F.bot]] }
     ];
-    const hmin = Math.min(p.es, p.ei, p.ep) * 100;
+    if (p.ba > 0) groups.push({ key: 'aba', name: 'Aba da laje de fundo (balanço)', h: p.ei, items: [['aba-B', 'Abas nos lados de B', fB.aba, F.aba], ['aba-L', 'Abas nos lados de L', fL.aba, F.aba]] });
+    groups.push(
+      { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, items: [['wl-v', 'Vertical', fB.wall, F.wall], ['wl-h', 'Horizontal', rg.long, F.wall]] },
+      { key: 'ws', name: 'Paredes curtas (ao longo de B)', h: p.ep, items: [['ws-v', 'Vertical', fL.wall, F.wall], ['ws-h', 'Horizontal', rg.short, F.wall]] });
     const rows = [], shear = [];
     groups.forEach(g => {
       const hc = g.h * 100, mn = asMin(hc, p.dl, P);
       g.items.forEach(([key, dir, e, faces]) => {
+        // na aba, o apoio (face da parede) traciona a face superior: ρ1 vem da armadura superior
+        const supKey = g.key === 'aba' ? key + '-int' : key + '-ext';
         [['int', e.Mdi, e.Msi, faces[0]], ['ext', e.Mde, e.Mse, faces[1]]].forEach(([side, Md, Ms, face]) => {
           const r = flex(Md, hc, p.dl, P);
           const AsReq = Math.max(Number.isFinite(r.As) ? r.As : Infinity, mn.As);
           rows.push({ key: key + '-' + side, group: g.key, el: g.name, dir, face, side, h: hc, Md, Ms, flex: r,
             AsCalc: r.As, AsMin: mn.As, AsReq, govMin: !(r.As > mn.As), sug: suggest(AsReq, Ms, hc, p.dl, P, p.wlim) });
         });
-        shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd: e.Vd, extKey: key + '-ext' });
+        shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd: e.Vd, extKey: supKey });
       });
     });
 
     return {
-      P, K, k0: !!p.k0, Bc, Lc, Hc, dA, dB, dw, cover, qtSelf, qtSoil, qtg, qbEq, qbWat, qbg, wallsW, uBase, waterGov,
-      ksB, ksL, kvLong, kvShort, khLong, khShort, pg, sh, uw, pqL, frames: { B: fB, L: fL }, ring: rg, groups, rows, shear, hmin
+      P, K, k0: !!p.k0, Bc, Lc, Hc, dA, dB, dw, cover, qtSelf, qtSoil, qtg, qbSelf, qAbaSoil, dAba, wallW, uBase, E,
+      ksB, ksL, kvLong, kvShort, khLong, khShort, pg, sh, uw, pqL, frames: { B: fB, L: fL }, ring: rg, groups, rows, shear
     };
   }
 
@@ -705,7 +869,7 @@ const Arm = (function () {
     const c = crack(row.Ms, As, phi, s, row.h, p.dl, P);
     return { As, c, okAs: As >= row.AsReq - 1e-9, okW: c.wk <= p.wlim + 1e-9, okFlex: row.flex.ok };
   }
-  return { compute, check, flex, asMin, crack, vrd1, suggest, barA, BARS, SPAC, solveFrame, mat };
+  return { compute, check, flex, asMin, crack, vrd1, suggest, barA, BARS, SPAC, solveFE, buildModel, memberValues, mat };
 })();
 
 /* ---------- Desenho da seção transversal ---------- */
@@ -911,9 +1075,9 @@ const DEFAULTS = {
   B: 2.10, L: 2.50, H: 2.10, ep: 0.20, ei: 0.20, es: 0.20, zs: -0.50, ba: 0.20, gc: 25,
   gd: 17, gsat: 19, phi: 30, c: 0, zw: -2.00, gw: 10,
   fc: 1.10, fs: 1.30, fst: 1.10, fa: 1.10, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
-  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, split: false
+  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, split: false, kv: 30000
 };
-const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim', 'q', 'gg', 'gq', 'psi1', 'k0', 'split'];
+const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim', 'q', 'gg', 'gq', 'psi1', 'k0', 'split', 'kv'];
 const FIELDS = [
   { key: 'B', lab: 'Largura, B', tip: 'Largura interna livre', unit: 'm', gt: 0 },
   { key: 'L', lab: 'Comprimento, L', tip: 'Comprimento interno livre', unit: 'm', gt: 0 },
@@ -948,7 +1112,8 @@ const FIELDS = [
   { key: 'q', lab: 'Sobrecarga no terreno, q', tip: 'Sobrecarga variável sobre o terreno e a laje de topo', unit: 'kN/m²', ge: 0, dec: 1 },
   { key: 'gg', lab: 'γ<sub>g</sub> permanentes', tip: 'Coeficiente de ponderação das ações permanentes (solo, água, peso próprio)', unit: '', ge: 1, dec: 2 },
   { key: 'gq', lab: 'γ<sub>q</sub> sobrecarga', tip: 'Coeficiente de ponderação da sobrecarga', unit: '', ge: 0, dec: 2 },
-  { key: 'psi1', lab: 'ψ<sub>1</sub> (frequente)', tip: 'Fator de redução da sobrecarga na combinação frequente (fissuração)', unit: '', ge: 0, le: 1, dec: 2 }
+  { key: 'psi1', lab: 'ψ<sub>1</sub> (frequente)', tip: 'Fator de redução da sobrecarga na combinação frequente (fissuração)', unit: '', ge: 0, le: 1, dec: 2 },
+  { key: 'kv', lab: 'Coeficiente de mola, k<sub>v</sub>', tip: 'Coeficiente de reação vertical do solo (Winkler)', unit: 'kN/m³', gt: 0, dec: 0 }
 ];
 // Organização do painel de dados: seção, subgrupo, colunas e campos.
 const LAYOUT = [
@@ -964,7 +1129,8 @@ const LAYOUT = [
   { sec: 'prem', title: 'Critério', cols: 2, keys: ['fsmin'] },
   { sec: 'am', title: 'Materiais', cols: 2, keys: ['fck', 'fyk', 'gmc', 'gms'] },
   { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm.' },
-  { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, na reação da laje de fundo e nas paredes como K · q.' },
+  { sec: 'aa', title: 'Apoio elástico (Winkler)', cols: 2, keys: ['kv'], note: 'Molas sob a laje de fundo e a aba, só de compressão (as tracionadas são desligadas). Ordem de grandeza: argila mole 5.000–15.000; areia média 20.000–50.000; areia compacta 50.000–120.000 kN/m³. Use o valor do laudo geotécnico.' },
+  { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, sobre a aba e nas paredes como K · q.' },
   { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], check: { key: 'split', text: 'Repartir as cargas entre as duas direções (grelha simplificada). Desmarcado: cada faixa leva a carga inteira.' } }
 ];
 const decOf = f => f.dec != null ? f.dec : (['phi', 'gc', 'gd', 'gsat', 'gw'].includes(f.key) ? 1 : 2);
@@ -1327,39 +1493,6 @@ function armSrcHtml(m) {
     it('N.A. z<sub>w</sub> (operação)', `${fz(p.zw)} m`);
 }
 
-function armLoadsHtml(m, A) {
-  const p = m.p;
-  const r = (a, b, c, d) => `<tr><td class="l">${a}</td><td class="l num">${b}</td><td class="num">${c}</td><td class="num">${d}</td></tr>`;
-  const g = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
-  const kTxt = A.k0 ? `K<sub>0</sub> = 1 − sen ${fmt(p.phi, 1)}°` : `K<sub>a</sub> = tg²(45° − ${fmt(p.phi, 1)}°/2)${p.c > 0 ? ', parcela −2c√K<sub>a</sub>' : ''}`;
-  const dRow = (lab, d) => r(lab, `z = ${fz(-d)} m: K·σ′<sub>v</sub> = ${fmt(A.sh(d), 2)}; u = ${fmt(A.uw(d), 2)}`, fmt(A.pg(d), 2), fmt(A.pqL, 2));
-  let h = `<table><thead><tr><th class="l">Ação</th><th class="l">Composição</th><th>Permanente g</th><th>Variável q</th></tr></thead><tbody>`;
-  h += g('Vãos de cálculo (eixos dos elementos, m)');
-  h += r('Direção B · direção L', `B + e<sub>p</sub> · L + e<sub>p</sub>`, fmt(A.Bc), fmt(A.Lc));
-  h += r('Altura das paredes H<sub>c</sub>', `H + (e<sub>s</sub> + e<sub>i</sub>)/2`, fmt(A.Hc), '');
-  h += g('Laje de topo (kN/m²)');
-  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>s</sub> = ${fmt(p.gc, 1)} × ${fmt(p.es)}`, fmt(A.qtSelf, 2), '—');
-  h += r('Solo sobre a laje', A.cover > 0 ? `σ<sub>v</sub> total, cobertura de ${fmt(A.cover)} m` : 'sem cobertura', fmt(A.qtSoil, 2), '—');
-  h += r('Sobrecarga no terreno', 'q', '—', fmt(p.q, 2));
-  h += `<tr class="total"><td class="l">Total</td><td></td><td class="num">${fmt(A.qtg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
-  h += g('Laje de fundo: pressão de baixo para cima (kN/m²)');
-  h += r('Reação do terreno', `laje de topo + paredes (${fmt(A.wallsW, 2)})`, fmt(A.qbEq, 2), fmt(p.q, 2));
-  h += r('Subpressão líquida', `u<sub>base</sub> − γ<sub>c</sub>·e<sub>i</sub> = ${fmt(A.uBase, 2)} − ${fmt(p.gc * p.ei, 2)}`, fmt(A.qbWat, 2), '—');
-  h += `<tr class="total"><td class="l">Adotada</td><td class="l">${A.waterGov ? 'governa a subpressão' : 'governa a reação do terreno'}</td><td class="num">${fmt(A.qbg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
-  h += g(`Paredes: pressão lateral (kPa), ${kTxt} = ${fmt(A.K, 3)}`);
-  h += dRow('Eixo da laje de topo', A.dA);
-  if (A.dw > A.dA && A.dw < A.dB) h += dRow('Nível d\'água', A.dw);
-  h += dRow('Face superior da laje de fundo (anel)', A.ring.d);
-  h += dRow('Eixo da laje de fundo', A.dB);
-  if (p.split) {
-    h += g('Repartição das cargas entre as direções (k = l⁴ da outra direção ÷ soma dos l⁴)');
-    h += r('Lajes', 'faixa paralela a B · paralela a L', fmt(A.ksB, 3), fmt(A.ksL, 3));
-    h += r('Paredes longas', 'vertical · horizontal', fmt(A.kvLong, 3), fmt(A.khLong, 3));
-    h += r('Paredes curtas', 'vertical · horizontal', fmt(A.kvShort, 3), fmt(A.khShort, 3));
-  }
-  return h + '</tbody></table>';
-}
-
 function armVerdictsHtml(res) {
   const card = (title, tag, ok, big, lab) => `<article class="stage"><div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${ok ? '<span class="pill ok">✓ Atende</span>' : '<span class="pill bad">✕ Não atende</span>'}</div><div class="fs"><span class="big ${ok ? 'ok' : 'bad'}">${big}</span><span class="lab">${lab}</span></div></article>`;
   return card('Flexão', 'ELU, envoltória', res.nFlex === res.n, `${res.nFlex}/${res.n}`, 'faces com A<sub>s,ef</sub> ≥ A<sub>s,nec</sub>') +
@@ -1401,64 +1534,145 @@ function armShearHtml(A, chk, p) {
   return { html: h + '</tbody></table>', vMax: Math.max(...out) };
 }
 
-// Diagramas de momento (ELU, todas as ações majoradas), desenhados do lado tracionado.
-function armFigure(A, view) {
+function armLoadsHtml(m, A) {
+  const p = m.p;
+  const r = (a, b, c, d) => `<tr><td class="l">${a}</td><td class="l num">${b}</td><td class="num">${c}</td><td class="num">${d}</td></tr>`;
+  const g = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
+  const kTxt = A.k0 ? `K<sub>0</sub> = 1 − sen ${fmt(p.phi, 1)}°` : `K<sub>a</sub> = tg²(45° − ${fmt(p.phi, 1)}°/2)${p.c > 0 ? ', parcela −2c√K<sub>a</sub>' : ''}`;
+  const dRow = (lab, d) => r(lab, `z = ${fz(-d)} m: K·σ′<sub>v</sub> = ${fmt(A.sh(d), 2)}; u = ${fmt(A.uw(d), 2)}`, fmt(A.pg(d), 2), fmt(A.pqL, 2));
+  const fB = A.frames.B, fL = A.frames.L;
+  let h = `<table><thead><tr><th class="l">Ação</th><th class="l">Composição</th><th>Permanente g</th><th>Variável q</th></tr></thead><tbody>`;
+  h += g('Vãos de cálculo (eixos dos elementos, m)');
+  h += r('Direção B · direção L', `B + e<sub>p</sub> · L + e<sub>p</sub>`, fmt(A.Bc), fmt(A.Lc));
+  h += r('Altura das paredes H<sub>c</sub>', `H + (e<sub>s</sub> + e<sub>i</sub>)/2`, fmt(A.Hc), '');
+  h += g('Laje de topo (kN/m²)');
+  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>s</sub> = ${fmt(p.gc, 1)} × ${fmt(p.es)}`, fmt(A.qtSelf, 2), '—');
+  h += r('Solo sobre a laje', A.cover > 0 ? `σ<sub>v</sub> total, cobertura de ${fmt(A.cover)} m` : 'sem cobertura', fmt(A.qtSoil, 2), '—');
+  h += r('Sobrecarga no terreno', 'q', '—', fmt(p.q, 2));
+  h += `<tr class="total"><td class="l">Total</td><td></td><td class="num">${fmt(A.qtg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
+  h += g('Paredes (kN/m, ao longo da altura)');
+  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>p</sub> = ${fmt(p.gc, 1)} × ${fmt(p.ep)}`, fmt(A.wallW, 2), '—');
+  h += g('Laje de fundo e aba (kN/m²)');
+  h += r('Peso próprio (para baixo)', `γ<sub>c</sub> · e<sub>i</sub> = ${fmt(p.gc, 1)} × ${fmt(p.ei)}`, fmt(A.qbSelf, 2), '—');
+  h += r('Subpressão (para cima, em toda a laje)', `u na cota ${fz(m.z.base)} m`, fmt(A.uBase, 2), '—');
+  if (p.ba > 0) h += r('Solo sobre a aba (para baixo)', A.dAba > 0 ? `σ<sub>v</sub> total na cota ${fz(m.z.botTop)} m` : 'sem cobertura', fmt(A.qAbaSoil, 2), fmt(p.q, 2));
+  h += r('Reação do terreno', `molas de Winkler, k<sub>v</sub> = ${fmt(p.kv, 0)} kN/m³, só compressão`, 'calculada', '');
+  h += g('Pressão de contato e recalque (combinação característica g + q, sem majorar)');
+  h += r('Direção B', `p<sub>máx</sub> · recalque máx.`, `${fmt(fB.pMax, 1)} kPa`, `${fmt(fB.wMax, 2)} mm`);
+  h += r('Direção L', `p<sub>máx</sub> · recalque máx.`, `${fmt(fL.pMax, 1)} kPa`, `${fmt(fL.wMax, 2)} mm`);
+  h += g(`Paredes: pressão lateral (kPa), ${kTxt} = ${fmt(A.K, 3)}`);
+  h += dRow('Eixo da laje de topo', A.dA);
+  if (A.dw > A.dA && A.dw < A.dB) h += dRow('Nível d\'água', A.dw);
+  h += dRow('Face superior da laje de fundo (anel)', A.ring.d);
+  h += dRow('Eixo da laje de fundo', A.dB);
+  if (p.split) {
+    h += g('Repartição das cargas entre as direções (k = l⁴ da outra direção ÷ soma dos l⁴)');
+    h += r('Lajes e cargas verticais', 'faixa paralela a B · paralela a L', fmt(A.ksB, 3), fmt(A.ksL, 3));
+    h += r('Paredes longas', 'vertical · horizontal', fmt(A.kvLong, 3), fmt(A.khLong, 3));
+    h += r('Paredes curtas', 'vertical · horizontal', fmt(A.kvShort, 3), fmt(A.khShort, 3));
+  }
+  return h + '</tbody></table>';
+}
+
+// Diagramas de esforços de cálculo (todas as ações majoradas). kind: 'M' (momento) ou 'V' (cortante).
+// Coordenadas em metros, y para cima. Cada membro: pontos, valores e normal do lado "positivo".
+function armFigure(A, view, kind) {
   const ring = view === 'ring';
-  const W = 680, H = ring ? 430 : 480, mx = 130, my = 90;
-  const f = ring ? null : A.frames[view];
-  const spanX = ring ? A.ring.Lc : f.Ls, spanY = ring ? A.ring.Bc : f.Hc;
+  let mems = [], spanX, spanY, names;
+  if (!ring) {
+    const f = A.frames[view], d = f.draw, g = f.geo;
+    const mk = (key, n, regs) => {
+      const v = d[key];
+      return { pts: v.pts, val: kind === 'M' ? v.M : v.V, n, lab: regs };
+    };
+    const R = d.reg;
+    const half = [
+      mk('top', [0, -1], [R.top]),
+      mk('wall', [-1, 0], [R.wall]),
+      mk('bottom', [0, 1], A.frames[view].aba ? [R.bot, R.aba] : [R.bot])
+    ];
+    half.forEach(h => {
+      mems.push(h);
+      mems.push({ pts: h.pts.map(q => [-q[0], q[1]]), val: kind === 'M' ? h.val : h.val.map(v => -v), n: [-h.n[0], h.n[1]], lab: null });
+    });
+    spanX = 2 * g.xtip; spanY = f.Hc;
+    names = [['laje de topo', 0, f.Hc, 'up'], ['laje de fundo', 0, 0, 'down'], [view === 'B' ? 'parede longa' : 'parede curta', -g.xw, f.Hc / 2, 'left']];
+  } else {
+    const r = A.ring, Lh = r.Lc / 2, Bh = r.Bc / 2;
+    const mkE = (e, from, to, n, lab) => {
+      const pts = e.xs.map(t => { const k = t / e.xs[e.xs.length - 1]; return [from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k]; });
+      return { pts, val: kind === 'M' ? e.Mall : e.Vall, n, lab: lab ? [{ ids: range(e.i0, e.i1), faces: [e.i0, e.i1] }] : null };
+    };
+    mems = [
+      mkE(r.long, [-Lh, Bh], [Lh, Bh], [0, -1], true),
+      mkE(r.long, [-Lh, -Bh], [Lh, -Bh], [0, 1], false),
+      mkE(r.short, [Lh, Bh], [Lh, -Bh], [-1, 0], true),
+      mkE(r.short, [-Lh, Bh], [-Lh, -Bh], [1, 0], false)
+    ];
+    spanX = r.Lc; spanY = r.Bc;
+    names = [['parede longa', 0, Bh, 'up'], ['parede curta', -Lh, 0, 'left']];
+  }
+  const W = 700, H = ring ? 430 : 490, mx = 120, my = 92;
   const sc = Math.min((W - 2 * mx) / spanX, (H - 2 * my) / spanY);
-  const x0 = (W - spanX * sc) / 2, y0 = (H - spanY * sc) / 2 - 8, x1 = x0 + spanX * sc, y1 = y0 + spanY * sc;
-  const mems = ring ? [
-    { e: A.ring.long, ax: t => [x0 + t * sc, y0], n: [0, 1], lab: true },
-    { e: A.ring.long, ax: t => [x0 + t * sc, y1], n: [0, -1], lab: false },
-    { e: A.ring.short, ax: t => [x0, y0 + t * sc], n: [1, 0], lab: true },
-    { e: A.ring.short, ax: t => [x1, y0 + t * sc], n: [-1, 0], lab: false }
-  ] : [
-    { e: f.top, ax: t => [x0 + t * sc, y0], n: [0, 1], lab: true },
-    { e: f.bot, ax: t => [x0 + t * sc, y1], n: [0, -1], lab: true },
-    { e: f.wall, ax: t => [x0, y0 + t * sc], n: [1, 0], lab: true },
-    { e: f.wall, ax: t => [x1, y0 + t * sc], n: [-1, 0], lab: false }
-  ];
-  const Mmax = Math.max(1e-9, ...mems.flatMap(o => o.e.Mall.map(Math.abs)));
-  const k = 54 / Mmax;
+  const cx = W / 2, cy = H / 2 - 6 + (ring ? 0 : spanY * sc / 2);
+  const X = x => cx + x * sc, Yp = y => (ring ? H / 2 - 6 - y * sc : cy - y * sc);
+  const Vmax = Math.max(1e-9, ...mems.flatMap(o => o.val.map(Math.abs)));
+  const k = (kind === 'M' ? 54 : 46) / Vmax;
   const P2 = a => a[0].toFixed(1) + ',' + a[1].toFixed(1);
-  let paths = '', labels = '';
+  let axes = '', paths = '', labels = '';
+  const used = [];
   mems.forEach(o => {
-    const e = o.e, ax = e.xs.map(o.ax);
-    const off = ax.map((a, i) => [a[0] + o.n[0] * e.Mall[i] * k, a[1] + o.n[1] * e.Mall[i] * k]);
-    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" fill="var(--accent)" fill-opacity=".16" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>`;
+    const ax = o.pts.map(q => [X(q[0]), Yp(q[1])]);
+    const off = ax.map((a, i) => [a[0] + o.n[0] * o.val[i] * k, a[1] - o.n[1] * o.val[i] * k]);
+    axes += `<polyline points="${ax.map(P2).join(' ')}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`;
+    const col = `var(--${kind === 'M' ? 'accent' : 'warn'})`;
+    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" fill="${col}" fill-opacity=".16" stroke="none"/>`;
+    paths += `<polyline points="${off.map(P2).join(' ')}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>`;
+    if (Math.abs(o.val[0]) > 1e-9 && !(o.pts[0][0] === 0 && o.n[0] === 0)) paths += `<line x1="${ax[0][0].toFixed(1)}" y1="${ax[0][1].toFixed(1)}" x2="${off[0][0].toFixed(1)}" y2="${off[0][1].toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`;
+    const e1 = ax.length - 1;
+    if (Math.abs(o.val[e1]) > 1e-9 && !(Math.abs(o.pts[e1][0]) < 1e-9 && o.n[0] === 0)) paths += `<line x1="${ax[e1][0].toFixed(1)}" y1="${ax[e1][1].toFixed(1)}" x2="${off[e1][0].toFixed(1)}" y2="${off[e1][1].toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`;
     if (!o.lab) return;
-    let im = e.i0;
-    for (let i = e.i0; i <= e.i1; i++) if (e.Mall[i] > e.Mall[im]) im = i;
-    const pick = [e.i0, e.i1];
-    if (e.Mall[im] > 0 && Math.abs(im - e.i0) > 12 && Math.abs(im - e.i1) > 12) pick.push(im);
-    pick.forEach(i => {
-      const v = e.Mall[i], sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = o.n[1] * sg;
-      const hor = Math.abs(dx) > 0;
-      const x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
-      const anc = hor ? (dx > 0 ? 'start' : 'end') : 'middle';
-      labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anc}" font-size="12" font-family="var(--f-mono)" fill="var(--ink)">${fmt(Math.abs(v), 1)}</text>`;
+    o.lab.forEach(rg => {
+      const pick = rg.faces.slice();
+      if (kind === 'M') {
+        let im = rg.ids[0];
+        rg.ids.forEach(i => { if (o.val[i] > o.val[im]) im = i; });
+        if (o.val[im] > 0 && !pick.some(i => Math.abs(i - im) < 3)) pick.push(im);
+      }
+      pick.forEach(i => {
+        const v = o.val[i]; if (Math.abs(v) < Vmax * 0.02) return;
+        const sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = -o.n[1] * sg;
+        const hor = Math.abs(dx) > 0;
+        let x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
+        if (used.some(u => Math.abs(u[0] - x) < 34 && Math.abs(u[1] - y) < 12)) y += (dy >= 0 ? 13 : -13);
+        used.push([x, y]);
+        const anc = hor ? (dx > 0 ? 'start' : 'end') : 'middle';
+        labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anc}" font-size="12" font-family="var(--f-mono)" fill="var(--ink)">${fmt(Math.abs(v), 1)}</text>`;
+      });
     });
   });
-  const dimX = ring ? `L<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanX)} m (paredes longas)</tspan>` : `${view === 'B' ? 'B' : 'L'}<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanX)} m (eixos)</tspan>`;
-  const dimY = ring ? `B<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanY)} m (paredes curtas)</tspan>` : `H<tspan dy="3" font-size="9">c</tspan><tspan dy="-3"> = ${fmt(spanY)} m</tspan>`;
-  const names = ring
-    ? [['parede longa', (x0 + x1) / 2, y0 - 66], ['parede curta', x0 - 72, (y0 + y1) / 2]]
-    : [['laje de topo', (x0 + x1) / 2, y0 - 66], ['laje de fundo', (x0 + x1) / 2, y1 + 74], [view === 'B' ? 'parede longa' : 'parede curta', x0 - 72, (y0 + y1) / 2]];
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de momentos fletores de cálculo, ${ring ? 'anel horizontal das paredes' : 'pórtico na direção ' + view}">
-    <rect x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>
-    ${paths}${labels}
-    <text x="${(x0 + x1) / 2}" y="${(y0 + y1) / 2 + 4}" text-anchor="middle" font-size="12" fill="var(--muted)">interior</text>
-    ${names.map(n => `<text x="${n[1].toFixed(1)}" y="${n[2].toFixed(1)}" text-anchor="middle" font-size="11.5" fill="var(--muted)" letter-spacing=".06em">${n[0].toUpperCase()}</text>`).join('')}
+  const nm = names.map(([t, x, y, pos]) => {
+    const px = X(x), py = Yp(y);
+    const [tx, ty] = pos === 'up' ? [px, py - 70] : pos === 'down' ? [px, py + 78] : [px - 76, py];
+    return `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="11.5" fill="var(--muted)" letter-spacing=".06em">${t.toUpperCase()}</text>`;
+  }).join('');
+  const sub = s => `<tspan dy="3" font-size="9">${s}</tspan><tspan dy="-3">`;
+  const dimX = ring ? `L${sub('c')} = ${fmt(spanX)} m (paredes longas)</tspan>` : `${view}${sub('c')} = ${fmt(A.frames[view].S)} m entre eixos · laje de fundo com aba ${fmt(spanX)} m</tspan>`;
+  const dimY = ring ? `B${sub('c')} = ${fmt(spanY)} m (paredes curtas)</tspan>` : `H${sub('c')} = ${fmt(spanY)} m</tspan>`;
+  const what = kind === 'M' ? 'momentos fletores' : 'esforços cortantes';
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de ${what} de cálculo, ${ring ? 'anel horizontal das paredes' : 'pórtico na direção ' + view}">
+    ${paths}${axes}${labels}
+    <text x="${cx}" y="${(ring ? H / 2 - 6 : cy - spanY * sc / 2) + 4}" text-anchor="middle" font-size="12" fill="var(--muted)">interior</text>
+    ${nm}
     <text x="${W / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--muted)">${dimX}</text>
-    <text transform="translate(16 ${(y0 + y1) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">${dimY}</text>
+    <text transform="translate(16 ${(ring ? H / 2 - 6 : cy - spanY * sc / 2).toFixed(1)}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">${dimY}</text>
   </svg>`;
 }
+function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
 
 /* ---------- Interface ---------- */
 if (typeof document !== 'undefined') {
-  const KEY = 'flutuacao-em-caixas-v1';
+  const KEY = 'flutuacao-em-caixas-v2';
   const state = Object.assign({}, DEFAULTS);
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) Object.keys(DEFAULTS).forEach(k => { if (k in s && (typeof s[k] === typeof DEFAULTS[k] || (DEFAULTS[k] === null && (s[k] === null || typeof s[k] === 'number')))) state[k] = s[k]; }); } catch (e) {}
   let stage = 'oper';
@@ -1537,8 +1751,8 @@ if (typeof document !== 'undefined') {
     btn.disabled = false; btn.textContent = lab;
   });
   // Aba Armaduras
-  const OVKEY = 'flutuacao-em-caixas-arm-ov', TABKEY = 'flutuacao-em-caixas-tab';
-  let armOv = {}, armView = 'B';
+  const OVKEY = 'flutuacao-em-caixas-v2-arm-ov', TABKEY = 'flutuacao-em-caixas-v2-tab';
+  let armOv = {}, armView = 'B', armKind = 'M';
   try { const o = JSON.parse(localStorage.getItem(OVKEY) || 'null'); if (o && typeof o === 'object') armOv = o; } catch (e) {}
   const saveOv = () => { try { localStorage.setItem(OVKEY, JSON.stringify(armOv)); } catch (e) {} };
   function syncChecks() { LAYOUT.forEach(g => { if (g.check) el(g.check.key).checked = !!state[g.check.key]; }); }
@@ -1558,6 +1772,11 @@ if (typeof document !== 'undefined') {
   ['B', 'L', 'ring'].forEach(v => el('av-' + v).addEventListener('click', () => {
     armView = v;
     ['B', 'L', 'ring'].forEach(w => el('av-' + w).setAttribute('aria-pressed', String(w === v)));
+    render();
+  }));
+  ['M', 'V'].forEach(v => el('ak-' + v).addEventListener('click', () => {
+    armKind = v;
+    ['M', 'V'].forEach(w => el('ak-' + w).setAttribute('aria-pressed', String(w === v)));
     render();
   }));
   el('arm-table').addEventListener('change', e => {
@@ -1599,16 +1818,21 @@ if (typeof document !== 'undefined') {
     });
     const w = [];
     if (A.rows.some(r => !r.flex.ok)) w.push('Há faces em que x/d passa do limite da NBR 6118 (seria preciso armadura dupla): aumente a espessura do elemento ou o f<sub>ck</sub>.');
-    if (A.waterGov) w.push('Na laje de fundo governa a subpressão líquida, maior que a reação do terreno. Isso indica que a caixa tende a flutuar; confira a aba Flutuação.');
+    const fr = [A.frames.B, A.frames.L];
+    if (fr.some(f => f.floated)) w.push('Em alguma combinação todas as molas ficaram tracionadas: a caixa flutua. Os esforços dessa combinação não são confiáveis; confira a aba Flutuação.');
+    else if (fr.some(f => f.uplift)) w.push('Em alguma combinação parte da laje de fundo tende a subir e as molas desse trecho foram desligadas (o solo não resiste à tração).');
     if (A.rows.some(r => !r.sug.found && !sel[r.key].manual)) w.push('Em alguma face nenhuma combinação de ø 8 a ø 20 com s de 10 a 20 cm atende A<sub>s,nec</sub> e w<sub>k,lim</sub>. A linha mostra a maior área disponível.');
     if (p.bo > 0 && p.lo > 0) w.push('A abertura da laje de topo não entra no pórtico. Detalhe a armadura de reforço em volta dela à parte.');
     if (p.zw > m.z.topTop) w.push('O nível d\'água está acima da laje de topo; a pressão da água sobre ela está incluída no peso saturado do solo.');
     el('arm-warns').innerHTML = w.map(t => `<p>${t}</p>`).join('');
-    el('arm-fig').innerHTML = armFigure(A, armView);
+    el('arm-fig').innerHTML = armFigure(A, armView, armKind);
     el('arm-figcap').innerHTML = (armView === 'ring'
       ? `Anel horizontal das paredes, em planta, na cota ${fz(-A.ring.d)} m. `
-      : `Pórtico fechado na direção ${armView} (faixa de 1 m, eixos). `) +
-      `Momentos de cálculo em kN·m/m com todas as ações majoradas (γ<sub>g</sub> e γ<sub>q</sub>), desenhados do lado tracionado; os valores das extremidades estão na face dos apoios. O dimensionamento usa a envoltória.`;
+      : `Pórtico fechado na direção ${armView} (faixa de 1 m, eixos), com a laje de fundo e a aba sobre molas de Winkler. `) +
+      (armKind === 'M'
+        ? `Momentos fletores de cálculo em kN·m/m, desenhados do lado tracionado; os valores rotulados estão na face dos apoios e no máximo do vão.`
+        : `Esforços cortantes de cálculo em kN/m; os valores rotulados estão na face dos apoios, onde se faz a verificação.`) +
+      ` Combinação com todas as ações majoradas (γ<sub>g</sub> e γ<sub>q</sub>); o dimensionamento usa a envoltória.`;
     el('arm-table').innerHTML = armTableHtml(A, sel, chk);
     el('arm-shear').innerHTML = sh.html;
     el('arm-loads').innerHTML = armLoadsHtml(m, A);
