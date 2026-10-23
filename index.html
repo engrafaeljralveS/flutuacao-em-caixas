@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Flutuação em Caixas v2</title>
+<title>Flutuação em Caixas v3</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -210,6 +210,28 @@ tr.grp { display: table-row; }
 .gmin { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; }
 td .pill { font-size: 11.5px; padding: 2px 8px; }
 .armfig svg { display: block; width: 100%; max-width: 760px; min-width: 520px; height: auto; margin: 0 auto; }
+/* v3: elementos finitos */
+:root { --pos: #c2410c; --neg: #1d5f8a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pos: #f0915f; --neg: #6db3df; } }
+:root[data-theme="dark"] { --pos: #f0915f; --neg: #6db3df; }
+.festatus { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); min-height: 22px; }
+.festatus .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.festatus.busy .dot { background: var(--warn); animation: pulse 1s infinite alternate; }
+.festatus.err .dot { background: var(--bad); }
+@keyframes pulse { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .festatus.busy .dot { animation: none; } }
+.ctrls { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 0 0 10px; }
+.ctrls label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.ctrls select { font: 500 13px var(--f-body); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 5px 6px; max-width: 100%; }
+.ctrls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mapfig svg { display: block; width: 100%; max-width: 780px; min-width: 520px; height: auto; margin: 0 auto; }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+.maplegend li { display: flex; align-items: center; gap: 6px; }
+.maplegend .sw { border: 0; }
+.verdicts.v4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.verdicts.v4 .fs .big { font-size: 34px; }
+@media (max-width: 1180px) { .verdicts.v4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .verdicts.v4 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 720px) { .verdicts.v3 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 980px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -223,9 +245,9 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v2.1 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.0 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
-    <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e dimensionamento das armaduras das lajes e paredes.</p>
+    <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
   <p class="notice">Cálculo preliminar. Coeficientes, hipóteses hidráulicas e parcelas resistentes precisam ser validados antes de qualquer uso em projeto executivo.</p>
 
@@ -309,33 +331,91 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
   <div id="tab-esf" role="tabpanel" aria-labelledby="tb-esf" hidden>
   <div class="app">
-    <aside class="inputs" aria-label="Diagramas de ações">
-      <section><h2><span class="n">A</span>Diagramas</h2>
-        <nav class="esfnav" id="esf-nav" aria-label="Escolha do diagrama"></nav>
+    <aside class="inputs" aria-label="Dados da análise">
+      <section><h2><span class="n">A</span>Modelo de elementos finitos</h2>
+        <div class="groups" id="f-emod"></div>
+        <p class="gnote" id="fe-mat"></p>
       </section>
-      <section><h2><span class="n">B</span>Corte</h2>
-        <div class="seg" role="group" aria-label="Direção do corte">
-          <button type="button" id="ed-B" aria-pressed="true">Direção B</button>
-          <button type="button" id="ed-L" aria-pressed="false">Direção L</button>
+      <section><h2><span class="n">B</span>Ações e combinações</h2><div class="groups" id="f-aa"></div></section>
+      <section><h2><span class="n">C</span>Carregamentos</h2>
+        <nav class="esfnav" id="esf-nav" aria-label="Escolha do diagrama de carregamento"></nav>
+        <div class="seg" role="group" aria-label="Direção do corte" style="margin-top:8px">
+          <button type="button" id="ed-B" aria-pressed="true">Corte B</button>
+          <button type="button" id="ed-L" aria-pressed="false">Corte L</button>
         </div>
-        <p class="gnote" style="margin-top:8px">Valores característicos (sem majorar), por faixa de 1 m. Use as setas ← → do teclado para passar de um diagrama para outro.</p>
+        <p class="gnote" style="margin-top:8px">Valores característicos (sem majorar). Use as setas ← → do teclado para passar de um diagrama para outro.</p>
       </section>
+      <p class="stale" id="esf-stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
+      <div class="btnrow"><button class="btn" id="esf-reset" type="button">Restaurar valores iniciais</button></div>
     </aside>
     <main class="results">
+      <div class="festatus" id="fe-status" role="status"><span class="dot"></span><span class="t"></span></div>
       <div class="warns" id="esf-warns" aria-live="polite"></div>
-      <section class="panel" aria-label="Diagrama selecionado">
+      <section aria-label="Resumo da análise"><div class="verdicts v3" id="fe-sum"></div></section>
+
+      <section class="panel" aria-label="Carregamentos">
         <div class="panel-head">
           <h2 id="esf-title"></h2>
           <div class="esfpager">
-            <button class="btn" type="button" id="esf-prev" aria-label="Diagrama anterior">‹ Anterior</button>
+            <button class="btn" type="button" id="esf-prev" aria-label="Carregamento anterior">‹ Anterior</button>
             <span class="cnt" id="esf-cnt" aria-live="polite"></span>
-            <button class="btn" type="button" id="esf-next" aria-label="Próximo diagrama">Próximo ›</button>
+            <button class="btn" type="button" id="esf-next" aria-label="Próximo carregamento">Próximo ›</button>
           </div>
         </div>
         <p class="esftxt" id="esf-txt"></p>
         <figure style="margin:0"><div class="figscroll esffig" id="esf-fig"></div></figure>
         <div id="esf-table"></div>
       </section>
+
+      <section class="panel" aria-label="Mapa de esforços">
+        <div class="panel-head"><h2><span class="n">E</span>Mapa de esforços</h2></div>
+        <div class="ctrls">
+          <label>Superfície<select id="map-s"></select></label>
+          <label>Esforço<select id="map-c"></select></label>
+          <label>Caso<select id="map-k"></select></label>
+        </div>
+        <figure style="margin:0"><div class="figscroll mapfig" id="map-fig"></div><figcaption id="map-cap"></figcaption></figure>
+        <ul class="maplegend">
+          <li><span class="sw" style="background:var(--pos)"></span>+ momento traciona a face externa · normal de tração</li>
+          <li><span class="sw" style="background:var(--neg)"></span>− momento traciona a face interna · normal de compressão</li>
+        </ul>
+      </section>
+
+      <section class="panel" aria-label="Diagramas nas faixas centrais">
+        <div class="panel-head">
+          <h2><span class="n">F</span>Diagramas nas faixas centrais</h2>
+          <div class="btnrow">
+            <div class="seg" role="group" aria-label="Esforço exibido">
+              <button type="button" id="sk-M" aria-pressed="true">Momento fletor</button>
+              <button type="button" id="sk-V" aria-pressed="false">Esforço cortante</button>
+            </div>
+            <div class="seg" role="group" aria-label="Corte exibido">
+              <button type="button" id="sv-B" aria-pressed="true">Corte B</button>
+              <button type="button" id="sv-L" aria-pressed="false">Corte L</button>
+              <button type="button" id="sv-P" aria-pressed="false">Planta</button>
+            </div>
+          </div>
+        </div>
+        <figure style="margin:0"><div class="figscroll armfig" id="strip-fig"></div><figcaption id="strip-cap"></figcaption></figure>
+      </section>
+
+      <section class="panel" aria-label="Esforços de dimensionamento">
+        <h2><span class="n">G</span>Esforços de dimensionamento</h2>
+        <div class="tablewrap" id="env-table"></div>
+        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU, com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
+      </section>
+
+      <details class="panel">
+        <summary>Método e limitações</summary>
+        <ul class="lim">
+          <li>Modelo 3D da caixa pela superfície média de lajes e paredes, em ¼ (simetria nos planos x = 0 e y = 0). Elementos de casca retangulares de 4 nós com 6 graus de liberdade por nó: placa de Mindlin MITC4 (sem travamento por cisalhamento) e membrana com modos incompatíveis. ν = 0,2 e E<sub>cs</sub> do f<sub>ck</sub> (aba Armaduras).</li>
+          <li>Malha de até h, refinada junto às ligações parede-laje (até e/4), com linhas nas faces dos apoios, no nível d'água e nos limites da aba, da abertura e da chaminé. Esforços nos nós pela recuperação SPR (Zienkiewicz-Zhu).</li>
+          <li>Laje de fundo e aba sobre molas de Winkler (k<sub>v</sub> × área de influência de cada nó), só de compressão: as molas tracionadas são desligadas e o cálculo se repete, em cada combinação.</li>
+          <li>A pressão lateral age nas paredes entre os eixos das lajes; a parcela sobre as meias espessuras das lajes entra como carga de linha nas bordas. A faixa da laje de topo além do eixo da parede entra como carga de linha no topo da parede. A abertura e a chaminé (peso no lugar do solo) entram no modelo; o empuxo sobre a chaminé, não.</li>
+          <li>Validação: placa engastada (flecha e momento central dentro de 1 % de Timoshenko) e caixa longa contra o pórtico plano (momentos nas faces dentro de 1 %). O equilíbrio vertical é conferido em cada análise.</li>
+          <li>Não verifica: etapa construtiva (paredes em balanço antes da laje de topo), caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, carregamentos assimétricos.</li>
+        </ul>
+      </details>
     </main>
   </div>
   </div>
@@ -345,69 +425,46 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
     <aside class="inputs" aria-label="Dados do dimensionamento">
       <section><h2><span class="n">A</span>Dados da caixa</h2>
         <dl class="src" id="arm-src"></dl>
-        <p class="gnote">Geometria, solo e nível d'água vêm da aba Flutuação (etapa de operação, N.A. em z<sub>w</sub>).</p>
-        <div style="margin-top:8px"><button class="btn" id="go-flut" type="button">Editar na aba Flutuação</button></div>
+        <p class="gnote">Geometria, solo e nível d'água vêm da aba Flutuação; os esforços, da aba Esforços (elementos finitos).</p>
+        <div class="btnrow" style="margin-top:8px"><button class="btn" id="go-flut" type="button">Editar geometria</button><button class="btn" id="go-esf" type="button">Ver esforços</button></div>
       </section>
       <section><h2><span class="n">B</span>Materiais e seção</h2><div class="groups" id="f-am"></div></section>
-      <section><h2><span class="n">C</span>Ações e combinações</h2><div class="groups" id="f-aa"></div></section>
       <p class="stale" id="arm-stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
       <div class="btnrow"><button class="btn" id="arm-sug" type="button">Sugerir todas as barras</button><button class="btn" id="arm-reset" type="button">Restaurar valores iniciais</button></div>
     </aside>
 
     <main class="results">
+      <div class="festatus" id="arm-status" role="status"><span class="dot"></span><span class="t"></span></div>
       <div class="warns" id="arm-warns" aria-live="polite"></div>
-      <section aria-label="Resumo do dimensionamento"><div class="verdicts v3" id="arm-verd"></div></section>
-
-      <section class="panel" aria-label="Diagramas de momento">
-        <div class="panel-head">
-          <h2><span class="n">E</span>Esforços de cálculo</h2>
-          <div class="btnrow">
-          <div class="seg" role="group" aria-label="Esforço exibido">
-            <button type="button" id="ak-M" aria-pressed="true">Momento fletor</button>
-            <button type="button" id="ak-V" aria-pressed="false">Esforço cortante</button>
-          </div>
-          <div class="seg" role="group" aria-label="Diagrama exibido">
-            <button type="button" id="av-B" aria-pressed="true">Direção B</button>
-            <button type="button" id="av-L" aria-pressed="false">Direção L</button>
-            <button type="button" id="av-ring" aria-pressed="false">Paredes, horizontal</button>
-          </div>
-          </div>
-        </div>
-        <figure style="margin:0"><div class="figscroll armfig" id="arm-fig"></div><figcaption id="arm-figcap"></figcaption></figure>
-      </section>
+      <section aria-label="Resumo do dimensionamento"><div class="verdicts v4" id="arm-verd"></div></section>
 
       <section class="panel" aria-label="Armaduras">
-        <div class="panel-head"><h2><span class="n">F</span>Armaduras por face</h2></div>
+        <div class="panel-head"><h2><span class="n">C</span>Armaduras por face</h2></div>
         <div class="tablewrap" id="arm-table"></div>
-        <p class="msg" style="margin-top:10px">Faixa de 1 m. A<sub>s,nec</sub> = maior entre A<sub>s,calc</sub> e A<sub>s,mín</sub>. As barras sugeridas são a menor área que atende A<sub>s,nec</sub> e w<sub>k,lim</sub>, com ø ≤ h/8 e s ≤ 20 cm. Mude a bitola ou o espaçamento em qualquer linha para adotar outra solução.</p>
+        <p class="msg" style="margin-top:10px">Faixa de 1 m (b = 100 cm). A<sub>s,calc</sub> com M<sub>d</sub> e, havendo tração, N<sub>d</sub> (flexo-tração); a compressão é desprezada. A<sub>s,nec</sub> = maior entre A<sub>s,calc</sub> e A<sub>s,mín</sub>. As barras sugeridas são a menor área que atende A<sub>s,nec</sub> e w<sub>k,lim</sub>, com ø ≤ h/8 e s ≤ s<sub>máx</sub>. Mude a bitola ou o espaçamento em qualquer linha para adotar outra solução.</p>
       </section>
 
       <section class="panel" aria-label="Cortante">
-        <h2><span class="n">G</span>Cortante nas faces dos apoios</h2>
+        <h2><span class="n">D</span>Cortante nas faces dos apoios</h2>
         <div class="tablewrap" id="arm-shear"></div>
-        <p class="msg" style="margin-top:10px">V<sub>Rd1</sub> = τ<sub>Rd</sub> · k · (1,2 + 40ρ<sub>1</sub>) · b<sub>w</sub> · d, com τ<sub>Rd</sub> = 0,25 f<sub>ctd</sub>, k = 1,6 − d ≥ 1 e ρ<sub>1</sub> da armadura externa adotada (NBR 6118, 19.4.1). A compressão normal (σ<sub>cp</sub>) é desprezada, a favor da segurança.</p>
-      </section>
-
-      <section class="panel" aria-label="Ações">
-        <h2><span class="n">D</span>Ações características</h2>
-        <div class="tablewrap" id="arm-loads"></div>
+        <p class="msg" style="margin-top:10px">V<sub>Rd1</sub> = τ<sub>Rd</sub> · k · (1,2 + 40ρ<sub>1</sub>) · b<sub>w</sub> · d, com τ<sub>Rd</sub> = 0,25 f<sub>ctd</sub>, k = 1,6 − d ≥ 1 e ρ<sub>1</sub> da armadura tracionada no apoio (NBR 6118, 19.4.1). A compressão normal (σ<sub>cp</sub>) é desprezada, a favor da segurança.</p>
       </section>
 
       <details class="panel">
-        <summary>Método e limitações</summary>
+        <summary>Verificações e limitações</summary>
         <ul class="lim">
-          <li>Pórtico fechado por faixa de 1 m nas direções B e L (lajes e flexão vertical das paredes), resolvido por elementos finitos de barra pelos eixos, em meio modelo com simetria. A laje de fundo e a aba ficam sobre molas de Winkler (k<sub>v</sub>), só de compressão. Flexão horizontal das paredes por um anel em planta, com a pressão da face superior da laje de fundo.</li>
-          <li>Sem repartição, cada faixa recebe a carga inteira nas duas direções (a favor da segurança). Com repartição, usa-se a grelha simplificada k = l<sub>y</sub><sup>4</sup> ÷ (l<sub>x</sub><sup>4</sup> + l<sub>y</sub><sup>4</sup>), que não substitui o cálculo de placas.</li>
-          <li>Envoltória ELU: as 16 combinações das ações (permanentes verticais, empuxo e água, sobrecarga vertical, sobrecarga lateral), com γ = 1,0 ou γ<sub>g</sub> nas permanentes e 0 ou γ<sub>q</sub> na sobrecarga, cada uma resolvida com as molas. ELS: permanentes + ψ<sub>1</sub> · sobrecarga. Módulo E<sub>cs</sub> do concreto.</li>
-          <li>Momentos negativos tomados na face dos apoios. Esforços normais desprezados no dimensionamento (compressão nas lajes e paredes, a favor da segurança na flexão).</li>
-          <li>A aba entra como balanço da laje de fundo, com o solo (tensão total) e a sobrecarga sobre ela e a subpressão por baixo. A abertura e a chaminé da laje de topo não entram no pórtico. A subpressão atua em toda a largura da laje de fundo, inclusive na aba.</li>
-          <li>Não verifica: etapa construtiva (paredes em balanço antes da laje de topo), caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, ancoragem e detalhamento dos cantos.</li>
-          <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária.</li>
+          <li>Flexão (17.2): diagrama retangular, λ e α<sub>c</sub> conforme f<sub>ck</sub>, x/d ≤ 0,45 (f<sub>ck</sub> ≤ 50 MPa) ou 0,35. Flexo-tração com pequena ou grande excentricidade.</li>
+          <li>Armadura mínima (17.3.5.2.1): M<sub>d,mín</sub> = 0,8 W<sub>0</sub> f<sub>ctk,sup</sub>, com ρ ≥ 0,15 %. Armadura máxima (17.3.5.2.4): A<sub>s</sub> + A<sub>s</sub>′ ≤ 4 % A<sub>c</sub> em cada direção.</li>
+          <li>Detalhamento das lajes (20.1): ø ≤ h/8 e s ≤ mín(20 cm; 2h).</li>
+          <li>Fissuração (17.3.3.2): w<sub>k</sub> = menor de w<sub>1</sub> e w<sub>2</sub>, estádio II, na combinação frequente, contra w<sub>k,lim</sub> da classe de agressividade.</li>
+          <li>Cortante (19.4.1): lajes sem armadura transversal, V<sub>Sd</sub> ≤ V<sub>Rd1</sub>.</li>
+          <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária. Ancoragem, emendas e detalhamento dos cantos ficam fora desta versão.</li>
         </ul>
       </details>
     </main>
   </div>
   </div>
+
 </div>
 
 <script>
@@ -525,16 +582,449 @@ const Calc = (function () {
   return { compute, lateral };
 })();
 
-/* ---------- Dimensionamento das armaduras (funções puras) ---------- */
-// v2: pórtico plano por elementos finitos (meio modelo, simetria), laje de fundo e aba sobre molas
-// de Winkler só de compressão. Faixa de 1 m nas direções B e L; anel horizontal para as paredes.
-// Unidades: kN, m; seções em cm.
+/* ---------- Motor de elementos finitos de casca (funções puras, sem DOM) ---------- */
+// Caixa modelada pela superfície média de lajes e paredes, em 1/4 (simetria em x = 0 e y = 0).
+// Elemento retangular de 4 nós, 6 gl por nó: membrana Q4 com modos incompatíveis + placa MITC4
+// (Mindlin) + rigidez fictícia de giro no plano. Molas de Winkler só de compressão sob a laje de fundo.
+// Eixos: x ao longo de B, y ao longo de L, z vertical (z = 0 no eixo da laje de fundo). Unidades kN, m.
+function FEengine() {
+  const G2 = [-1 / Math.sqrt(3), 1 / Math.sqrt(3)];
+  const NODE = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
+  // Superfícies: eixos locais (linhas de T = eixos locais em coordenadas globais). z' aponta para fora da caixa.
+  const SURF = {
+    top: { T: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },      // x' = x (B), y' = y (L)
+    bot: { T: [[0, 1, 0], [1, 0, 0], [0, 0, -1]] },     // x' = y (L), y' = x (B)
+    wx: { T: [[0, 1, 0], [0, 0, 1], [1, 0, 0]] },      // parede em x = Bc/2: x' = y (horizontal), y' = z (vertical)
+    wy: { T: [[0, 0, 1], [1, 0, 0], [0, 1, 0]] }       // parede em y = Lc/2: x' = z (vertical), y' = x (horizontal)
+  };
+
+  /* ----- matriz do elemento retangular (cache por dimensões) ----- */
+  const cache = new Map();
+  function elemMats(a, b, t, E, nu) {
+    const key = [a.toFixed(6), b.toFixed(6), t.toFixed(5), E, nu].join('|');
+    if (cache.has(key)) return cache.get(key);
+    const ha = a / 2, hb = b / 2, dJ = ha * hb;
+    const Am = E * t / (1 - nu * nu), Db = E * t * t * t / (12 * (1 - nu * nu)), Ds = 5 / 6 * E / (2 * (1 + nu)) * t;
+    const C = [[1, nu, 0], [nu, 1, 0], [0, 0, (1 - nu) / 2]];
+    const N = (i, x, y) => 0.25 * (1 + NODE[i][0] * x) * (1 + NODE[i][1] * y);
+    const Nx = (i, x, y) => 0.25 * NODE[i][0] * (1 + NODE[i][1] * y) / ha;
+    const Ny = (i, x, y) => 0.25 * NODE[i][1] * (1 + NODE[i][0] * x) / hb;
+    const zeros = (r, c) => Array.from({ length: r }, () => new Float64Array(c));
+    const K = zeros(24, 24);
+    // ---- membrana: nós (u,v) -> 8 gl; modos incompatíveis 4 gl
+    const Kcc = zeros(8, 8), Kci = zeros(8, 4), Kii = zeros(4, 4);
+    const BmAt = (x, y) => {
+      const Bc = zeros(3, 8), Bi = zeros(3, 4);
+      for (let i = 0; i < 4; i++) { const dx = Nx(i, x, y), dy = Ny(i, x, y); Bc[0][2 * i] = dx; Bc[1][2 * i + 1] = dy; Bc[2][2 * i] = dy; Bc[2][2 * i + 1] = dx; }
+      Bi[0][0] = -2 * x / ha; Bi[1][3] = -2 * y / hb; Bi[2][1] = -2 * y / hb; Bi[2][2] = -2 * x / ha;
+      return { Bc, Bi };
+    };
+    const addBtDB = (Kout, B1, B2, D, f) => {
+      const r1 = B1[0].length, r2 = B2[0].length;
+      for (let p = 0; p < r1; p++) for (let q = 0; q < r2; q++) {
+        let s = 0;
+        for (let i = 0; i < 3; i++) { if (!B1[i][p]) continue; for (let j = 0; j < 3; j++) s += B1[i][p] * D[i][j] * B2[j][q]; }
+        Kout[p][q] += s * f;
+      }
+    };
+    const Dm = C.map(r => r.map(v => v * Am)), Dbm = C.map(r => r.map(v => v * Db));
+    G2.forEach(x => G2.forEach(y => {
+      const { Bc, Bi } = BmAt(x, y);
+      addBtDB(Kcc, Bc, Bc, Dm, dJ); addBtDB(Kci, Bc, Bi, Dm, dJ); addBtDB(Kii, Bi, Bi, Dm, dJ);
+    }));
+    // condensação estática: K = Kcc − Kci Kii⁻¹ Kic ;  R = Kii⁻¹ Kic (para recuperar os modos internos)
+    const inv = invert(Kii.map(r => Array.from(r)));
+    const R = zeros(4, 8);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 8; j++) { let s = 0; for (let k = 0; k < 4; k++) s += inv[i][k] * Kci[j][k]; R[i][j] = s; }
+    const mDof = i => [6 * i, 6 * i + 1];
+    for (let p = 0; p < 8; p++) for (let q = 0; q < 8; q++) {
+      let s = Kcc[p][q]; for (let k = 0; k < 4; k++) s -= Kci[p][k] * R[k][q];
+      K[mDof(p >> 1)[p & 1]][mDof(q >> 1)[q & 1]] += s;
+    }
+    // ---- placa MITC4: gl locais (w, φx, φy); φx = θy', φy = −θx'
+    const bDof = i => [6 * i + 2, 6 * i + 3, 6 * i + 4];
+    // B de flexão: κx = Σ Nx φx ; κy = Σ Ny φy ; κxy = Σ (Ny φx + Nx φy)   (colunas: w, φx, φy por nó)
+    const BbAt = (x, y) => { const B = zeros(3, 12); for (let i = 0; i < 4; i++) { const dx = Nx(i, x, y), dy = Ny(i, x, y); B[0][3 * i + 1] = dx; B[1][3 * i + 2] = dy; B[2][3 * i + 1] = dy; B[2][3 * i + 2] = dx; } return B; };
+    // cisalhamento direto: γxz = ∂w/∂x + φx ; γyz = ∂w/∂y + φy
+    const gxzAt = (x, y) => { const r = new Float64Array(12); for (let i = 0; i < 4; i++) { r[3 * i] = Nx(i, x, y); r[3 * i + 1] = N(i, x, y); } return r; };
+    const gyzAt = (x, y) => { const r = new Float64Array(12); for (let i = 0; i < 4; i++) { r[3 * i] = Ny(i, x, y); r[3 * i + 2] = N(i, x, y); } return r; };
+    const gA = gxzAt(0, -1), gC = gxzAt(0, 1), gD = gyzAt(-1, 0), gB = gyzAt(1, 0);
+    const BsAt = (x, y) => { const B = zeros(2, 12); for (let k = 0; k < 12; k++) { B[0][k] = 0.5 * (1 - y) * gA[k] + 0.5 * (1 + y) * gC[k]; B[1][k] = 0.5 * (1 - x) * gD[k] + 0.5 * (1 + x) * gB[k]; } return B; };
+    const Kp = zeros(12, 12);
+    G2.forEach(x => G2.forEach(y => {
+      const Bb = BbAt(x, y), Bs = BsAt(x, y);
+      addBtDB(Kp, Bb, Bb, Dbm, dJ);
+      for (let p = 0; p < 12; p++) for (let q = 0; q < 12; q++) Kp[p][q] += Ds * (Bs[0][p] * Bs[0][q] + Bs[1][p] * Bs[1][q]) * dJ;
+    }));
+    // (w, φx, φy) -> (w, θx', θy'):  φx = θy', φy = −θx'
+    const map = (k) => { const n = Math.floor(k / 3), c = k % 3; return c === 0 ? [6 * n + 2, 1] : c === 1 ? [6 * n + 4, 1] : [6 * n + 3, -1]; };
+    for (let p = 0; p < 12; p++) for (let q = 0; q < 12; q++) { const [ip, sp] = map(p), [iq, sq] = map(q); K[ip][iq] += sp * sq * Kp[p][q]; }
+    // giro no plano (fictício)
+    const kd = 1e-3 * Db;
+    for (let i = 0; i < 4; i++) K[6 * i + 5][6 * i + 5] += kd;
+    // ---- resultantes nos 4 pontos de Gauss, como funções lineares dos 24 gl locais
+    // ordem: [M1, M2, M12, Q1, Q2, N1, N2, N12]
+    const S = [];
+    G2.forEach(y => G2.forEach(x => { /* preenchido abaixo na ordem dos nós */ }));
+    const gp = [[G2[0], G2[0]], [G2[1], G2[0]], [G2[1], G2[1]], [G2[0], G2[1]]];
+    gp.forEach(([x, y]) => {
+      const rows = Array.from({ length: 8 }, () => new Float64Array(24));
+      const Bb = BbAt(x, y), Bs = BsAt(x, y);
+      for (let k = 0; k < 12; k++) {
+        const [ik, sk] = map(k);
+        for (let r = 0; r < 3; r++) { let s = 0; for (let j = 0; j < 3; j++) s += Dbm[r][j] * Bb[j][k]; rows[r][ik] += sk * s; }
+        rows[3][ik] += sk * Ds * Bs[0][k]; rows[4][ik] += sk * Ds * Bs[1][k];
+      }
+      const { Bc, Bi } = BmAt(x, y);
+      // ε = Bc uc + Bi a ,  a = −R uc
+      const Beff = zeros(3, 8);
+      for (let r = 0; r < 3; r++) for (let q = 0; q < 8; q++) { let s = Bc[r][q]; for (let k = 0; k < 4; k++) s -= Bi[r][k] * R[k][q]; Beff[r][q] = s; }
+      for (let r = 0; r < 3; r++) for (let q = 0; q < 8; q++) { let s = 0; for (let j = 0; j < 3; j++) s += Dm[r][j] * Beff[j][q]; rows[5 + r][mDof(q >> 1)[q & 1]] += s; }
+      S.push(rows);
+    });
+    // extrapolação Gauss -> nós
+    const s3 = Math.sqrt(3), X = NODE.map(([xi, yi]) => gp.map(([xg, yg]) => 0.25 * (1 + xi * s3 * Math.sign(xg)) * (1 + yi * s3 * Math.sign(yg))));
+    const out = { K, S, X, ha, hb, dJ, N, Db };
+    cache.set(key, out);
+    return out;
+  }
+
+  function invert(A) {
+    const n = A.length, M = A.map((r, i) => r.concat(Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))));
+    for (let c = 0; c < n; c++) {
+      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      [M[c], M[p]] = [M[p], M[c]];
+      const d = M[c][c]; for (let j = 0; j < 2 * n; j++) M[c][j] /= d;
+      for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c]; if (f) for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j]; }
+    }
+    return M.map(r => r.slice(n));
+  }
+
+  /* ----- malha ----- */
+  // Divide [a,b] passando pelos pontos-chave, com passo ≤ h
+  // zones: [[a, b, hf]] = faixas com passo menor (ligações parede-laje)
+  function axis(keys, h, zones = []) {
+    const lo = Math.min(...keys), hi = Math.max(...keys);
+    zones.forEach(([a, b]) => { if (a > lo && a < hi) keys.push(a); if (b > lo && b < hi) keys.push(b); });
+    const k = [...new Set(keys.map(v => +v.toFixed(6)))].sort((a, b) => a - b);
+    const out = [k[0]];
+    for (let i = 1; i < k.length; i++) {
+      const L = k[i] - k[i - 1]; if (L < 1e-6) continue;
+      const mid = (k[i] + k[i - 1]) / 2, z = zones.find(([a, b]) => mid > a && mid < b), hs = z ? Math.min(h, z[2]) : h;
+      const n = Math.max(1, Math.round(L / hs)); for (let j = 1; j <= n; j++) out.push(k[i - 1] + L * j / n);
+    }
+    return out;
+  }
+  function buildBox(g) {
+    const { Bc, Lc, Hc, ep, es, ei, ba, h } = g;
+    const xw = Bc / 2, yw = Lc / 2, xf = xw - ep / 2, yf = yw - ep / 2, xo = xw + ep / 2, yo = yw + ep / 2;
+    const bo = Math.min(g.bo || 0, 2 * xf), lo = Math.min(g.lo || 0, 2 * yf), opening = bo > 0 && lo > 0;
+    const chim = opening && g.chimH > 0;
+    const xk = [0, xf, xw], yk = [0, yf, yw];
+    if (opening) { xk.push(bo / 2); yk.push(lo / 2); if (chim) { xk.push(Math.min(bo / 2 + ep, xf)); yk.push(Math.min(lo / 2 + ep, yf)); } }
+    // refino junto às ligações: do eixo até uma espessura além da face, passo ≤ t/4
+    const hj = t => Math.max(0.02, t / 4);
+    const zx = [[xf - ep / 2, xo + ep / 2, hj(ep)]], zy = [[yf - ep / 2, yo + ep / 2, hj(ep)]];
+    const zz = [[0, ei, hj(ei)], [Hc - es, Hc, hj(es)]];
+    const xs = axis(xk, h, zx), ys = axis(yk, h, zy);
+    const xsb = axis(xk.concat(ba > 0 ? [xo, xo + ba] : []), h, zx), ysb = axis(yk.concat(ba > 0 ? [yo, yo + ba] : []), h, zy);
+    const zk = [0, ei / 2, Hc - es / 2, Hc].concat(g.zExtra || []).filter(v => v >= 0 && v <= Hc);
+    const zs = axis(zk, h, zz);
+    const nodes = [], keyMap = new Map(), elems = [];
+    const node = (x, y, z) => { const k = x.toFixed(5) + ',' + y.toFixed(5) + ',' + z.toFixed(5); let id = keyMap.get(k); if (id == null) { id = nodes.length; nodes.push([x, y, z]); keyMap.set(k, id); } return id; };
+    // superfície: grade (u, v) -> ponto global; ordem dos nós anti-horária em torno de z'
+    const surf = (name, us, vs, P, t, keep) => {
+      for (let i = 0; i < us.length - 1; i++) for (let j = 0; j < vs.length - 1; j++) {
+        const uc = (us[i] + us[i + 1]) / 2, vc = (vs[j] + vs[j + 1]) / 2;
+        if (keep && !keep(uc, vc)) continue;
+        const n = [node(...P(us[i], vs[j])), node(...P(us[i + 1], vs[j])), node(...P(us[i + 1], vs[j + 1])), node(...P(us[i], vs[j + 1]))];
+        elems.push({ s: name, n, a: us[i + 1] - us[i], b: vs[j + 1] - vs[j], t, c: P(uc, vc) });
+      }
+    };
+    // laje de topo: x' = x, y' = y
+    surf('top', xs, ys, (u, v) => [u, v, Hc], es, (u, v) => !(opening && u < bo / 2 && v < lo / 2));
+    // laje de fundo: x' = y, y' = x  (u = y, v = x)
+    surf('bot', ysb, xsb, (u, v) => [v, u, 0], ei);
+    // parede em x = xw: x' = y, y' = z
+    surf('wx', ys, zs, (u, v) => [xw, u, v], ep);
+    // parede em y = yw: x' = z, y' = x
+    surf('wy', zs, xs, (u, v) => [v, yw, u], ep);
+    return { nodes, elems, xs, ys, xsb, ysb, zs, geo: { xw, yw, xf, yf, xo, yo, bo, lo, opening, chim, Hc, ep, es, ei, ba } };
+  }
+
+  /* ----- numeração (Cuthill-McKee reverso) e solver skyline LDLᵀ ----- */
+  function rcm(nn, elems) {
+    const adj = Array.from({ length: nn }, () => new Set());
+    elems.forEach(e => e.n.forEach(a => e.n.forEach(b => { if (a !== b) adj[a].add(b); })));
+    const deg = adj.map(s => s.size), seen = new Uint8Array(nn), order = [];
+    const bfs = start => { const lv = new Int32Array(nn).fill(-1); lv[start] = 0; const q = [start]; for (let i = 0; i < q.length; i++) adj[q[i]].forEach(v => { if (lv[v] < 0) { lv[v] = lv[q[i]] + 1; q.push(v); } }); return { q, lv }; };
+    for (let s0 = 0; s0 < nn; s0++) {
+      if (seen[s0]) continue;
+      let start = s0;
+      for (let it = 0; it < 3; it++) { const { q, lv } = bfs(start); const far = q[q.length - 1]; let best = far; q.forEach(v => { if (lv[v] === lv[far] && deg[v] < deg[best]) best = v; }); start = best; }
+      const q = [start]; seen[start] = 1;
+      for (let i = 0; i < q.length; i++) {
+        const nb = [...adj[q[i]]].filter(v => !seen[v]).sort((a, b) => deg[a] - deg[b]);
+        nb.forEach(v => { seen[v] = 1; q.push(v); });
+      }
+      order.push(...q);
+    }
+    return order.reverse();
+  }
+
+  function factor(a, maxa, n) {
+    for (let N = 0; N < n; N++) {
+      const kn = maxa[N], kl = kn + 1, ku = maxa[N + 1] - 1, kh = ku - kl;
+      if (kh > 0) {
+        let k = N - kh, ic = 0, klt = ku;
+        for (let j = 1; j <= kh; j++) {
+          ic++; klt--;
+          const ki = maxa[k], nd = maxa[k + 1] - ki - 1;
+          if (nd > 0) { const kk = Math.min(ic, nd); let c = 0; for (let l = 1; l <= kk; l++) c += a[ki + l] * a[klt + l]; a[klt] -= c; }
+          k++;
+        }
+      }
+      if (kh >= 0) {
+        let k = N, b = 0;
+        for (let kk = kl; kk <= ku; kk++) { k--; const ki = maxa[k], c = a[kk] / a[ki]; b += c * a[kk]; a[kk] = c; }
+        a[kn] -= b;
+      }
+      if (!(a[kn] > 0)) return false;
+    }
+    return true;
+  }
+  function backsub(a, maxa, n, v) {
+    for (let N = 0; N < n; N++) { const kl = maxa[N] + 1, ku = maxa[N + 1] - 1; if (ku >= kl) { let k = N, c = 0; for (let kk = kl; kk <= ku; kk++) { k--; c += a[kk] * v[k]; } v[N] -= c; } }
+    for (let N = 0; N < n; N++) v[N] /= a[maxa[N]];
+    for (let N = n - 1; N > 0; N--) { const kl = maxa[N] + 1, ku = maxa[N + 1] - 1; if (ku >= kl) { let k = N; for (let kk = kl; kk <= ku; kk++) { k--; v[k] -= a[kk] * v[N]; } } }
+    return v;
+  }
+
+  /* ----- montagem ----- */
+  function prepare(mesh, mat, fixedDof) {
+    const nn = mesh.nodes.length, order = rcm(nn, mesh.elems);
+    const eq = new Int32Array(6 * nn).fill(-1);
+    let n = 0;
+    order.forEach(nd => { for (let d = 0; d < 6; d++) if (!fixedDof(nd, d)) eq[6 * nd + d] = n++; });
+    const top = new Int32Array(n); for (let i = 0; i < n; i++) top[i] = i;
+    mesh.elems.forEach(e => {
+      const eqs = []; e.n.forEach(nd => { for (let d = 0; d < 6; d++) { const q = eq[6 * nd + d]; if (q >= 0) eqs.push(q); } });
+      const mn = Math.min(...eqs); eqs.forEach(q => { if (mn < top[q]) top[q] = mn; });
+    });
+    const maxa = new Int32Array(n + 1); for (let j = 0; j < n; j++) maxa[j + 1] = maxa[j] + (j - top[j] + 1);
+    const a0 = new Float64Array(maxa[n]);
+    mesh.elems.forEach(e => {
+      const M = elemMats(e.a, e.b, e.t, mat.E, mat.nu), T = SURF[e.s].T;
+      // Kg = Rᵀ K R, R = blocos de T
+      const Kg = globalK(M.K, T);
+      const idx = []; e.n.forEach(nd => { for (let d = 0; d < 6; d++) idx.push(eq[6 * nd + d]); });
+      for (let p = 0; p < 24; p++) { const i = idx[p]; if (i < 0) continue; for (let q = 0; q < 24; q++) { const j = idx[q]; if (j < 0 || i > j) continue; a0[maxa[j] + (j - i)] += Kg[p][q]; } }
+    });
+    return { eq, n, maxa, a0, nnz: maxa[n] };
+  }
+  function globalK(K, T) {
+    // R (24×24) bloco-diagonal com T 3×3; Kg = Rᵀ K R
+    const Kg = Array.from({ length: 24 }, () => new Float64Array(24));
+    const tmp = Array.from({ length: 24 }, () => new Float64Array(24));
+    for (let p = 0; p < 24; p++) for (let q = 0; q < 24; q++) {        // tmp = K R
+      const bq = q - q % 3; let s = 0; for (let k = 0; k < 3; k++) s += K[p][bq + k] * T[k][q % 3]; tmp[p][q] = s;
+    }
+    for (let p = 0; p < 24; p++) for (let q = 0; q < 24; q++) {        // Kg = Rᵀ tmp
+      const bp = p - p % 3; let s = 0; for (let k = 0; k < 3; k++) s += T[k][p % 3] * tmp[bp + k][q]; Kg[p][q] = s;
+    }
+    return Kg;
+  }
+  // vetor de cargas global a partir de força por área f(x,y,z,e) -> [fx,fy,fz] (global)
+  function areaLoad(mesh, eq, n, fn) {
+    const F = new Float64Array(n);
+    mesh.elems.forEach(e => {
+      const M = elemMats(e.a, e.b, e.t, 1, 0.2);
+      const P = e.n.map(i => mesh.nodes[i]);
+      G2.forEach(x => G2.forEach(y => {
+        const Nv = [0, 1, 2, 3].map(i => M.N(i, x, y));
+        const X = [0, 1, 2].map(c => Nv.reduce((s, v, i) => s + v * P[i][c], 0));
+        const f = fn(X[0], X[1], X[2], e); if (!f) return;
+        for (let i = 0; i < 4; i++) for (let c = 0; c < 3; c++) { const q = eq[6 * e.n[i] + c]; if (q >= 0) F[q] += Nv[i] * f[c] * M.dJ; }
+      }));
+    });
+    return F;
+  }
+
+  /* ----- resultantes: pontos de Gauss e recuperação nodal (SPR, Zienkiewicz-Zhu) ----- */
+  function gaussValues(mesh, eq, U, mat) {
+    return mesh.elems.map(e => {
+      const M = elemMats(e.a, e.b, e.t, mat.E, mat.nu), T = SURF[e.s].T, ul = new Float64Array(24);
+      e.n.forEach((nd, k) => { for (let blk = 0; blk < 2; blk++) { const gv = [0, 1, 2].map(c => { const q = eq[6 * nd + 3 * blk + c]; return q >= 0 ? U[q] : 0; }); for (let r = 0; r < 3; r++) ul[6 * k + 3 * blk + r] = T[r][0] * gv[0] + T[r][1] * gv[1] + T[r][2] * gv[2]; } });
+      return M.S.map(rows => rows.map(row => { let s = 0; for (let k = 0; k < 24; k++) s += row[k] * ul[k]; return s; }));
+    });
+  }
+  // Para cada superfície: lista de nós e, para cada nó, pesos sobre os valores de Gauss (elemento, ponto)
+  function recovery(mesh) {
+    const surfNodes = {}, surfIdx = {}, W = {};
+    const gpPos = mesh.elems.map(e => {
+      const M = elemMats(e.a, e.b, e.t, 1, 0.2), T = SURF[e.s].T, P = e.n.map(i => mesh.nodes[i]);
+      return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => {
+        const x = sx / Math.sqrt(3), y = sy / Math.sqrt(3), Nv = [0, 1, 2, 3].map(i => M.N(i, x, y));
+        const X = [0, 1, 2].map(c => Nv.reduce((s, v, i) => s + v * P[i][c], 0));
+        return [T[0][0] * X[0] + T[0][1] * X[1] + T[0][2] * X[2], T[1][0] * X[0] + T[1][1] * X[1] + T[1][2] * X[2]];
+      });
+    });
+    const uv = (s, i) => { const T = SURF[s].T, X = mesh.nodes[i]; return [T[0][0] * X[0] + T[0][1] * X[1] + T[0][2] * X[2], T[1][0] * X[0] + T[1][1] * X[1] + T[1][2] * X[2]]; };
+    ['top', 'bot', 'wx', 'wy'].forEach(s => {
+      const nodeEl = new Map();
+      mesh.elems.forEach((e, ei) => { if (e.s !== s) return; e.n.forEach((i, k) => { if (!nodeEl.has(i)) nodeEl.set(i, []); nodeEl.get(i).push([ei, k]); }); });
+      const list = [...nodeEl.keys()]; surfNodes[s] = list; surfIdx[s] = new Map(list.map((i, j) => [i, j]));
+      // polinômio do patch de cada nó interior (4 elementos): p = [1, u, v, uv] centrado no nó
+      const patch = new Map();
+      nodeEl.forEach((els, i) => {
+        if (els.length !== 4) return;
+        const [u0, v0] = uv(s, i), pts = [];
+        els.forEach(([ei]) => gpPos[ei].forEach((q, g) => pts.push([ei, g, q[0] - u0, q[1] - v0])));
+        const A = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        pts.forEach(([, , du, dv]) => { const p = [1, du, dv, du * dv]; for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) A[r][c] += p[r] * p[c]; });
+        patch.set(i, { u0, v0, Ai: invert(A), pts });
+      });
+      const evalPatch = (pt, u, v) => { const p = [1, u - pt.u0, v - pt.v0, (u - pt.u0) * (v - pt.v0)], c = [0, 1, 2, 3].map(r => pt.Ai[r].reduce((s2, x, k) => s2 + x * p[k], 0)); return pt.pts.map(([ei, g, du, dv]) => [ei, g, c[0] + c[1] * du + c[2] * dv + c[3] * du * dv]); };
+      W[s] = list.map(i => {
+        const [u, v] = uv(s, i);
+        if (patch.has(i)) return evalPatch(patch.get(i), u, v);
+        // nó de borda: média das extrapolações dos patches vizinhos
+        const nb = new Set(); nodeEl.get(i).forEach(([ei]) => mesh.elems[ei].n.forEach(j => { if (patch.has(j)) nb.add(j); }));
+        if (nb.size) { const acc = []; nb.forEach(j => evalPatch(patch.get(j), u, v).forEach(([ei, g, w]) => acc.push([ei, g, w / nb.size]))); return acc; }
+        // sem patch interior: extrapolação dentro dos próprios elementos
+        const els = nodeEl.get(i), acc = [];
+        els.forEach(([ei, k]) => { const M = elemMats(mesh.elems[ei].a, mesh.elems[ei].b, mesh.elems[ei].t, 1, 0.2); for (let g = 0; g < 4; g++) acc.push([ei, g, M.X[k][g] / els.length]); });
+        return acc;
+      });
+    });
+    return { surfNodes, surfIdx, W };
+  }
+  function nodal(rec, gpv) {
+    const out = {};
+    Object.keys(rec.W).forEach(s => {
+      const W = rec.W[s], a = new Float64Array(W.length * 8);
+      W.forEach((ws, j) => ws.forEach(([ei, g, w]) => { const v = gpv[ei][g]; for (let r = 0; r < 8; r++) a[8 * j + r] += w * v[r]; }));
+      out[s] = a;
+    });
+    return out;
+  }
+
+  /* ----- análise completa ----- */
+  // inp: { geo, mat:{E,nu}, kv, loads:{...}, combos:[{f:[4], lin:bool}] }
+  function analyze(inp) {
+    const t0 = Date.now();
+    const L = inp.loads, g = inp.geo;
+    const mesh = buildBox(Object.assign({}, g, { zExtra: L.dw > L.dA && L.dw < L.dB ? [L.dB - L.dw] : [] }));
+    const G = mesh.geo, nn = mesh.nodes.length;
+    const fixed = (nd, d) => { const [x, y] = mesh.nodes[nd]; return (Math.abs(x) < 1e-9 && (d === 0 || d === 4 || d === 5)) || (Math.abs(y) < 1e-9 && (d === 1 || d === 3 || d === 5)); };
+    const sys = prepare(mesh, inp.mat, fixed);
+    const { eq, n, maxa, a0 } = sys;
+    // molas: área de influência dos nós da laje de fundo
+    const trib = new Float64Array(nn);
+    mesh.elems.forEach(e => { if (e.s === 'bot') e.n.forEach(i => { trib[i] += e.a * e.b / 4; }); });
+    const springNodes = []; for (let i = 0; i < nn; i++) if (trib[i] > 0) springNodes.push(i);
+
+    // ---- cargas (4 componentes): 0 permanentes verticais, 1 empuxo + água, 2 sobrecarga vertical, 3 sobrecarga lateral
+    const sh = d => Math.max(0, L.K * (d <= L.dw ? L.gd * d : L.gd * L.dw + L.gp * (d - L.dw)) - L.cT);
+    const uw = d => L.gw * Math.max(0, d - L.dw);
+    const pg = d => sh(d) + uw(d);
+    const depth = z => L.dB - z;
+    const inAba = (x, y) => x > G.xo + 1e-9 || y > G.yo + 1e-9;
+    const inRing = (x, y) => G.chim && x < G.bo / 2 + g.ep + 1e-9 && y < G.lo / 2 + g.ep + 1e-9;
+    const F = [
+      areaLoad(mesh, eq, n, (x, y, z, e) => {
+        if (e.s === 'top') return [0, 0, -(L.qtSelf + (inRing(e.c[0], e.c[1]) ? L.qChim : L.qtSoil))];
+        if (e.s === 'bot') return [0, 0, -L.qbSelf + L.uBase - (inAba(e.c[0], e.c[1]) ? L.qAba : 0)];
+        return [0, 0, -L.wallW];
+      }),
+      areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'wx' ? [-pg(depth(z)), 0, 0] : e.s === 'wy' ? [0, -pg(depth(z)), 0] : null),
+      areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'top' ? [0, 0, -L.q] : (e.s === 'bot' && inAba(e.c[0], e.c[1])) ? [0, 0, -L.q] : null),
+      areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'wx' ? [-L.Kq, 0, 0] : e.s === 'wy' ? [0, -L.Kq, 0] : null)
+    ];
+    // cargas de linha nas bordas: faixa da laje de topo além do eixo da parede (e_p/2) e pressão lateral
+    // nas meias espessuras das lajes (do eixo até a face externa)
+    const integ = (f, a, b) => { const m = 40, hh = (b - a) / m; let s = 0; for (let i = 0; i <= m; i++) s += f(a + i * hh) * ((i === 0 || i === m) ? 0.5 : 1); return s * hh; };
+    const pTop = integ(pg, L.dA - g.es / 2, L.dA), pBot = integ(pg, L.dB, L.dB + g.ei / 2);
+    const lineLoad = (Fv, pred, along, vec) => {
+      // distribui carga por metro "vec" ao longo dos nós que satisfazem pred, pela coordenada "along"
+      const ids = []; for (let i = 0; i < nn; i++) if (pred(mesh.nodes[i])) ids.push(i);
+      ids.sort((a, b) => mesh.nodes[a][along] - mesh.nodes[b][along]);
+      ids.forEach((id, k) => {
+        const c = mesh.nodes[id][along], lo = k > 0 ? (c - mesh.nodes[ids[k - 1]][along]) / 2 : 0, hi = k < ids.length - 1 ? (mesh.nodes[ids[k + 1]][along] - c) / 2 : 0;
+        for (let d = 0; d < 3; d++) { const q = eq[6 * id + d]; if (q >= 0 && vec[d]) Fv[q] += vec[d] * (lo + hi); }
+      });
+    };
+    const near = (a, b) => Math.abs(a - b) < 1e-7;
+    const topEdgeX = p => near(p[0], G.xw) && near(p[2], g.Hc), topEdgeY = p => near(p[1], G.yw) && near(p[2], g.Hc);
+    const botEdgeX = p => near(p[0], G.xw) && near(p[2], 0) && p[1] <= G.yw + 1e-9, botEdgeY = p => near(p[1], G.yw) && near(p[2], 0) && p[0] <= G.xw + 1e-9;
+    lineLoad(F[0], topEdgeX, 1, [0, 0, -(L.qtSelf + L.qtSoil) * g.ep / 2]);
+    lineLoad(F[0], topEdgeY, 0, [0, 0, -(L.qtSelf + L.qtSoil) * g.ep / 2]);
+    lineLoad(F[2], topEdgeX, 1, [0, 0, -L.q * g.ep / 2]);
+    lineLoad(F[2], topEdgeY, 0, [0, 0, -L.q * g.ep / 2]);
+    lineLoad(F[1], topEdgeX, 1, [-pTop, 0, 0]); lineLoad(F[1], topEdgeY, 0, [0, -pTop, 0]);
+    lineLoad(F[1], botEdgeX, 1, [-pBot, 0, 0]); lineLoad(F[1], botEdgeY, 0, [0, -pBot, 0]);
+    lineLoad(F[3], topEdgeX, 1, [-L.Kq * g.es / 2, 0, 0]); lineLoad(F[3], topEdgeY, 0, [0, -L.Kq * g.es / 2, 0]);
+    lineLoad(F[3], botEdgeX, 1, [-L.Kq * g.ei / 2, 0, 0]); lineLoad(F[3], botEdgeY, 0, [0, -L.Kq * g.ei / 2, 0]);
+    // carga vertical total aplicada (1/4 da caixa), por componente
+    const Fz = F.map(Fv => { let s = 0; for (let i = 0; i < nn; i++) { const q = eq[6 * i + 2]; if (q >= 0) s += Fv[q]; } return s; });
+
+    // ---- solução com molas (só compressão)
+    const solveWith = (active, rhsList) => {
+      const a = new Float64Array(a0);
+      springNodes.forEach(i => { if (active[i]) { const q = eq[6 * i + 2]; if (q >= 0) a[maxa[q]] += inp.kv * trib[i]; } });
+      if (!factor(a, maxa, n)) return null;
+      return rhsList.map(r => backsub(a, maxa, n, Float64Array.from(r)));
+    };
+    const allOn = new Uint8Array(nn).fill(1);
+    let nFact = 1;
+    const base = solveWith(allOn, F);
+    if (!base) return { error: 'A matriz de rigidez não é positiva definida. Confira a geometria e o coeficiente de mola.' };
+    const uzOf = (U, i) => { const q = eq[6 * i + 2]; return q >= 0 ? U[q] : 0; };
+    const solveCombo = cb => {
+      let U = new Float64Array(n); cb.f.forEach((c, k) => { if (c) for (let i = 0; i < n; i++) U[i] += c * base[k][i]; });
+      let active = allOn, it = 0, lifted = 0;
+      if (!cb.lin) {
+        for (; it < 25; it++) {
+          const next = new Uint8Array(nn); let changed = false, any = false;
+          springNodes.forEach(i => { next[i] = uzOf(U, i) <= 0 ? 1 : 0; if (next[i]) any = true; if (next[i] !== active[i]) changed = true; });
+          if (!changed) break;
+          if (!any) return { U, active: next, floated: true, it };
+          const Fc = new Float64Array(n); cb.f.forEach((c, k) => { if (c) for (let i = 0; i < n; i++) Fc[i] += c * F[k][i]; });
+          const r = solveWith(next, [Fc]); nFact++;
+          if (!r) return { U, active: next, floated: true, it };
+          U = r[0]; active = next;
+        }
+        springNodes.forEach(i => { if (!active[i]) lifted++; });
+      }
+      return { U, active, it, lifted, floated: false };
+    };
+
+    // ---- resultantes nodais por superfície (recuperação SPR)
+    const rec = recovery(mesh), surfNodes = rec.surfNodes;
+    const resultants = U => nodal(rec, gaussValues(mesh, eq, U, inp.mat));
+    const disp = U => { const d = new Float64Array(nn * 3); for (let i = 0; i < nn; i++) for (let c = 0; c < 3; c++) { const q = eq[6 * i + c]; d[3 * i + c] = q >= 0 ? U[q] : 0; } return d; };
+
+    const results = inp.combos.map(cb => {
+      const r = solveCombo(cb);
+      let R = 0; const press = new Float64Array(nn);
+      springNodes.forEach(i => { if (r.active[i]) { const w = uzOf(r.U, i); press[i] = Math.max(0, -inp.kv * w); R += press[i] * trib[i]; } });
+      const Fapp = cb.f.reduce((s, c, k) => s + c * Fz[k], 0);
+      return { res: resultants(r.U), disp: disp(r.U), press, R: 4 * R, Fz: -4 * Fapp, lifted: r.lifted, floated: r.floated, it: r.it };
+    });
+    return {
+      nodes: mesh.nodes, elems: mesh.elems.map(e => ({ s: e.s, n: e.n, a: e.a, b: e.b, c: e.c })), geo: G, surfNodes, results,
+      stats: { nElem: mesh.elems.length, nNode: nn, nEq: n, nnz: sys.nnz, nFact, ms: Date.now() - t0 }
+    };
+  }
+  return { analyze, buildBox, elemMats, prepare, areaLoad, factor, backsub, SURF, recovery, nodal, gaussValues };
+}
+
+/* ---------- Esforços (MEF) e dimensionamento das armaduras: funções puras ---------- */
 const Arm = (function () {
   const BARS = [8, 10, 12.5, 16, 20];
   const SPAC = [20, 17.5, 15, 12.5, 10];
   const barA = phi => Math.PI * Math.pow(phi / 10, 2) / 4;   // cm²
-  const N = 160;
-  const PERM = [true, true, false, false];                     // Vg, Lg, Qv, Ql
 
   function mat(p) {
     const fck = p.fck;
@@ -557,6 +1047,15 @@ const Arm = (function () {
     if (disc < 0) return { As: NaN, xi: Infinity, d, ok: false };
     const y = 1 - Math.sqrt(disc), xi = y / P.lam;
     return { As: M / (P.fyd * d * (1 - y / 2)), xi, d, ok: xi <= P.xlim + 1e-9 };
+  }
+  // Flexo-tração (Nd > 0, kN/m): pequena excentricidade → seção toda tracionada; grande → flexão com Ms + Nd/fyd.
+  // Compressão (Nd ≤ 0) é desprezada, a favor da segurança.
+  function flexN(Md, Nd, h, dl, P) {
+    if (!(Nd > 0)) return Object.assign(flex(Md, h, dl, P), { mode: 'flex' });
+    const d = h - dl, e0 = Md * 100 / Nd, lim = h / 2 - dl;
+    if (e0 <= lim) return { As: Nd * (h / 2 + e0 - dl) / ((d - dl) * P.fyd), xi: 0, d, ok: true, mode: 'tração' };
+    const Ms = Md - Nd * lim / 100, r = flex(Ms, h, dl, P);
+    return { As: r.As + Nd / P.fyd, xi: r.xi, d, ok: r.ok, mode: 'flexo-tração' };
   }
   // NBR 6118, 17.3.5.2.1: Md,mín = 0,8 W0 fctk,sup, com ρ ≥ 0,15 %.
   function asMin(h, dl, P) {
@@ -583,341 +1082,152 @@ const Arm = (function () {
     const k = Math.max(1, 1.6 - dm);
     return { V: 0.25 * P.fctd * k * (1.2 + 40 * rho1) * dm * 1000, rho1, k, dm };
   }
+  const sMax = h => Math.min(20, 2 * h);
   // Menor As,ef que atende As,nec e w_k,lim; ø ≤ h/8 e s ≤ mín(20 cm; 2h).
   function suggest(AsReq, Mser, h, dl, P, wlim) {
-    const smax = Math.min(20, 2 * h), cands = [];
-    BARS.filter(f => f <= h * 10 / 8 + 1e-9).forEach(phi => SPAC.filter(s => s <= smax + 1e-9).forEach(s => {
+    const cands = [];
+    BARS.filter(f => f <= h * 10 / 8 + 1e-9).forEach(phi => SPAC.filter(s => s <= sMax(h) + 1e-9).forEach(s => {
       const As = barA(phi) * 100 / s;
       cands.push({ phi, s, As, wk: crack(Mser, As, phi, s, h, dl, P).wk });
     }));
-    const okc = cands.filter(c => c.As >= AsReq - 1e-9 && c.wk <= wlim + 1e-9)
-      .sort((a, b) => a.As - b.As || b.s - a.s);
+    const okc = cands.filter(c => c.As >= AsReq - 1e-9 && c.wk <= wlim + 1e-9).sort((a, b) => a.As - b.As || b.s - a.s);
     if (okc.length) return Object.assign({ found: true }, okc[0]);
     const all = cands.sort((a, b) => b.As - a.As);
     return all.length ? Object.assign({ found: false }, all[0]) : { phi: 10, s: 10, As: barA(10) * 10, found: false };
   }
-
-  /* ----- Elementos finitos de pórtico plano (Euler-Bernoulli), com fundação de Winkler ----- */
-  // Local: x de i para j; y à esquerda. Momento interno positivo traciona a face −y (à direita do percurso).
-  function kLocal(L, EA, EI, kw) {
-    const a = EA / L, b = 12 * EI / (L * L * L), c = 6 * EI / (L * L), d = 4 * EI / L, e = 2 * EI / L;
-    const K = [
-      [a, 0, 0, -a, 0, 0],
-      [0, b, c, 0, -b, c],
-      [0, c, d, 0, -c, e],
-      [-a, 0, 0, a, 0, 0],
-      [0, -b, -c, 0, b, -c],
-      [0, c, e, 0, -c, d]];
-    if (kw > 0) {
-      const f = kw * L / 420, id = [1, 2, 4, 5];
-      const W = [[156, 22 * L, 54, -13 * L], [22 * L, 4 * L * L, 13 * L, -3 * L * L], [54, 13 * L, 156, -22 * L], [-13 * L, -3 * L * L, -22 * L, 4 * L * L]];
-      for (let r = 0; r < 4; r++) for (let q = 0; q < 4; q++) K[id[r]][id[q]] += f * W[r][q];
-    }
-    return K;
-  }
-  // Cargas distribuídas globais (qx, qy) lineares de i a j → forças nodais equivalentes locais.
-  function fLocal(L, c, s, q) {
-    const qa1 = c * q[0] + s * q[1], qa2 = c * q[2] + s * q[3];
-    const qt1 = -s * q[0] + c * q[1], qt2 = -s * q[2] + c * q[3];
-    return [L * (2 * qa1 + qa2) / 6, L * (7 * qt1 + 3 * qt2) / 20, L * L * (3 * qt1 + 2 * qt2) / 60,
-      L * (qa1 + 2 * qa2) / 6, L * (3 * qt1 + 7 * qt2) / 20, -L * L * (2 * qt1 + 3 * qt2) / 60];
-  }
-  const toLocal = (c, s, g) => [c * g[0] + s * g[1], -s * g[0] + c * g[1], g[2], c * g[3] + s * g[4], -s * g[3] + c * g[4], g[5]];
-  const toGlobal = (c, s, l) => [c * l[0] - s * l[1], s * l[0] + c * l[1], l[2], c * l[3] - s * l[4], s * l[3] + c * l[4], l[5]];
-
-  function gauss(A, b) {
-    const n = b.length;
-    for (let k = 0; k < n; k++) {
-      let piv = k, mx = Math.abs(A[k][k]);
-      for (let i = k + 1; i < n; i++) if (Math.abs(A[i][k]) > mx) { mx = Math.abs(A[i][k]); piv = i; }
-      if (mx < 1e-14) return null;
-      if (piv !== k) { [A[k], A[piv]] = [A[piv], A[k]]; [b[k], b[piv]] = [b[piv], b[k]]; }
-      const akk = A[k][k];
-      for (let i = k + 1; i < n; i++) {
-        const f = A[i][k] / akk; if (f === 0) continue;
-        const Ai = A[i], Ak = A[k];
-        for (let j = k; j < n; j++) Ai[j] -= f * Ak[j];
-        b[i] -= f * b[k];
-      }
-    }
-    const x = new Array(n).fill(0);
-    for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let j = i + 1; j < n; j++) s -= A[i][j] * x[j]; x[i] = s / A[i][i]; }
-    return x;
+  // Wood-Armer: momentos de dimensionamento (≥ 0) nas duas faces, nas duas direções locais.
+  // Convenção: M > 0 traciona a face externa (+z').
+  function woodArmer(M1, M2, M12) {
+    const a = Math.abs(M12);
+    let e1 = M1 + a, e2 = M2 + a;
+    if (e1 < 0 && e2 < 0) { e1 = 0; e2 = 0; }
+    else if (e1 < 0) { e1 = 0; e2 = M2 + (Math.abs(M1) > 1e-12 ? M12 * M12 / Math.abs(M1) : 0); }
+    else if (e2 < 0) { e2 = 0; e1 = M1 + (Math.abs(M2) > 1e-12 ? M12 * M12 / Math.abs(M2) : 0); }
+    let i1 = M1 - a, i2 = M2 - a;
+    if (i1 > 0 && i2 > 0) { i1 = 0; i2 = 0; }
+    else if (i1 > 0) { i1 = 0; i2 = M2 - (Math.abs(M1) > 1e-12 ? M12 * M12 / Math.abs(M1) : 0); }
+    else if (i2 > 0) { i2 = 0; i1 = M1 - (Math.abs(M2) > 1e-12 ? M12 * M12 / Math.abs(M2) : 0); }
+    return { e: [Math.max(0, e1), Math.max(0, e2)], i: [Math.max(0, -i1), Math.max(0, -i2)] };
   }
 
-  // model: nodes [[x,y]], elems [{i,j,EA,EI,kw}], fix [[node,dof]], loads: {el: [[qx1,qy1,qx2,qy2] por elemento], pt: [[node,fx,fy]]}
-  function solveFE(model, loads) {
-    const nn = model.nodes.length, nd = 3 * nn;
-    const geo = model.elems.map(e => {
-      const [x1, y1] = model.nodes[e.i], [x2, y2] = model.nodes[e.j];
-      const L = Math.hypot(x2 - x1, y2 - y1);
-      return { L, c: (x2 - x1) / L, s: (y2 - y1) / L };
-    });
-    const fixed = new Set(model.fix.map(([n, d]) => 3 * n + d));
-    let active = model.elems.map(e => e.kw > 0);
-    let u = null, it = 0, floated = false;
-    for (; it < 40; it++) {
-      const K = Array.from({ length: nd }, () => new Float64Array(nd)), F = new Float64Array(nd);
-      model.elems.forEach((e, k) => {
-        const g = geo[k], Kl = kLocal(g.L, e.EA, e.EI, active[k] ? e.kw : 0);
-        const dofs = [3 * e.i, 3 * e.i + 1, 3 * e.i + 2, 3 * e.j, 3 * e.j + 1, 3 * e.j + 2];
-        // Kg = Tᵀ Kl T
-        const T = [[g.c, g.s, 0, 0, 0, 0], [-g.s, g.c, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0], [0, 0, 0, g.c, g.s, 0], [0, 0, 0, -g.s, g.c, 0], [0, 0, 0, 0, 0, 1]];
-        const KT = Kl.map(r => T[0].map((_, q) => r.reduce((s, v, m) => s + v * T[m][q], 0)));
-        for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) {
-          let s = 0; for (let m = 0; m < 6; m++) s += T[m][a] * KT[m][b];
-          K[dofs[a]][dofs[b]] += s;
-        }
-        const q = loads.el[k];
-        if (q) { const fg = toGlobal(g.c, g.s, fLocal(g.L, g.c, g.s, q)); for (let a = 0; a < 6; a++) F[dofs[a]] += fg[a]; }
-      });
-      loads.pt.forEach(([n, fx, fy]) => { F[3 * n] += fx; F[3 * n + 1] += fy; });
-      // molas residuais mínimas evitam singularidade se todas forem desligadas
-      if (!active.some(a => a)) { floated = true; model.elems.forEach((e, k) => { if (e.kw > 0) { K[3 * e.i + 1][3 * e.i + 1] += 1e-6 * e.kw; K[3 * e.j + 1][3 * e.j + 1] += 1e-6 * e.kw; } }); }
-      fixed.forEach(d => { for (let j = 0; j < nd; j++) { K[d][j] = 0; K[j][d] = 0; } K[d][d] = 1; F[d] = 0; });
-      u = gauss(K.map(r => Array.from(r)), Array.from(F));
-      if (!u) return null;
-      let changed = false;
-      const next = model.elems.map((e, k) => {
-        if (!(e.kw > 0)) return false;
-        const w = (u[3 * e.i + 1] + u[3 * e.j + 1]) / 2;      // > 0: laje subiu, mola tracionada
-        return w <= 0;
-      });
-      next.forEach((v, k) => { if (v !== active[k]) changed = true; });
-      if (!changed) break;
-      active = next;
-    }
-    // esforços internos nas extremidades
-    const ends = model.elems.map((e, k) => {
-      const g = geo[k], Kl = kLocal(g.L, e.EA, e.EI, active[k] ? e.kw : 0);
-      const ug = [u[3 * e.i], u[3 * e.i + 1], u[3 * e.i + 2], u[3 * e.j], u[3 * e.j + 1], u[3 * e.j + 2]];
-      const ul = toLocal(g.c, g.s, ug);
-      const fe = loads.el[k] ? fLocal(g.L, g.c, g.s, loads.el[k]) : [0, 0, 0, 0, 0, 0];
-      const f = Kl.map((r, a) => r.reduce((s, v, m) => s + v * ul[m], 0) - fe[a]);
-      return { Mi: -f[2], Mj: f[5], Vi: f[1], Vj: -f[4], Ni: -f[0], Nj: f[3] };
-    });
-    const uplift = model.elems.some((e, k) => e.kw > 0 && !active[k]);
-    return { u, ends, active, uplift, floated, iters: it };
-  }
-
-  // Valores nodais ao longo de um membro (sequência de elementos encadeados)
-  function memberValues(model, sol, list) {
-    const M = [], V = [], pts = [];
-    list.forEach((k, idx) => {
-      const e = model.elems[k], r = sol.ends[k];
-      if (idx === 0) { M.push(r.Mi); V.push(r.Vi); pts.push(model.nodes[e.i]); }
-      M.push(r.Mj); V.push(r.Vj); pts.push(model.nodes[e.j]);
-    });
-    return { M, V, pts };
-  }
-
-  // Monta o meio modelo de uma direção (eixo de simetria em x = 0).
-  function buildModel(o) {
-    const { S, Hc, ep, es, ei, ba, E, kv } = o;
-    const xw = S / 2, xin = xw - ep / 2, xout = xw + ep / 2, xtip = xout + ba;
-    const h = 0.08;
-    const nodes = [], elems = [], key = new Map();
-    const node = (x, y) => { const k = x.toFixed(6) + ',' + y.toFixed(6); if (key.has(k)) return key.get(k); nodes.push([x, y]); key.set(k, nodes.length - 1); return nodes.length - 1; };
-    const seg = (a, b, t, kw, tag) => {      // a, b: [x,y]; devolve índices de elementos
-      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      if (L < 1e-9) return [];
-      const n = Math.max(1, Math.ceil(L / h)), out = [];
-      for (let i = 0; i < n; i++) {
-        const p = [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], q = [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n];
-        elems.push({ i: node(p[0], p[1]), j: node(q[0], q[1]), EA: E * t, EI: E * t * t * t / 12, kw, tag });
-        out.push(elems.length - 1);
-      }
-      return out;
-    };
-    // percursos com a face interna (ou superior, na aba) à direita: M > 0 traciona essa face
-    const top = [...seg([0, Hc], [xin, Hc], es, 0, 'top'), ...seg([xin, Hc], [xw, Hc], es, 0, 'top')];
-    const wall = [...seg([xw, Hc], [xw, Hc - es / 2], ep, 0, 'wall'), ...seg([xw, Hc - es / 2], [xw, ei / 2], ep, 0, 'wall'), ...seg([xw, ei / 2], [xw, 0], ep, 0, 'wall')];
-    const aba = [...seg([xtip, 0], [xout, 0], ei, kv, 'aba'), ...seg([xout, 0], [xw, 0], ei, kv, 'bot')];
-    const bot = [...seg([xw, 0], [xin, 0], ei, kv, 'bot'), ...seg([xin, 0], [0, 0], ei, kv, 'bot')];
-    const nTopC = node(0, Hc), nBotC = node(0, 0);
-    return {
-      nodes, elems, fix: [[nTopC, 0], [nTopC, 2], [nBotC, 0], [nBotC, 2]],
-      top, wall, bottom: aba.concat(bot), geo: { xw, xin, xout, xtip, S, Hc }
-    };
-  }
-
-  function compute(m) {
-    const p = m.p, P = mat(p), z = m.z;
-    if (!(p.dl < 100 * Math.min(p.es, p.ei, p.ep))) return { error: 'd′ precisa ser menor que a espessura de todos os elementos.' };
+  /* ----- entrada do motor de elementos finitos ----- */
+  const NCOMB = { elu: [0, 16], els: [16, 20], car: 20, comp: [21, 25] };
+  function feInput(m) {
+    const p = m.p, z = m.z, P = mat(p);
     const Bc = p.B + p.ep, Lc = p.L + p.ep, Hc = p.H + (p.es + p.ei) / 2;
     const dw = p.zw < 0 ? -p.zw : 0, gp = Math.max(0, p.gsat - p.gw);
     const phiR = p.phi * Math.PI / 180;
     const K = p.k0 ? 1 - Math.sin(phiR) : Math.pow(Math.tan(Math.PI / 4 - phiR / 2), 2);
-    const cTerm = p.k0 ? 0 : 2 * p.c * Math.sqrt(K);
-    const sv = d => (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw));          // tensão vertical efetiva
-    const svT = d => (d <= dw ? p.gd * d : p.gd * dw + p.gsat * (d - dw));     // tensão vertical total
+    const cT = p.k0 ? 0 : 2 * p.c * Math.sqrt(K);
+    const svT = d => (d <= dw ? p.gd * d : p.gd * dw + p.gsat * (d - dw));
     const uw = d => p.gw * Math.max(0, d - dw);
-    const sh = d => Math.max(0, K * sv(d) - cTerm);
-    const pg = d => sh(d) + uw(d);
-    const pqL = K * p.q;
-    const E = P.Ecs * 1000;                                                   // kN/m²
-
-    // Cargas verticais (kN/m²)
-    const cover = Math.max(0, -z.topTop);
-    const qtSelf = p.gc * p.es, qtSoil = svT(cover), qtg = qtSelf + qtSoil;
-    const dAba = Math.max(0, -z.botTop), qAbaSoil = svT(dAba);
-    const qbSelf = p.gc * p.ei, wallW = p.gc * p.ep;
-    const uBase = uw(-z.base);
-
-    const L4 = x => Math.pow(x, 4);
-    const ksB = p.split ? L4(Lc) / (L4(Bc) + L4(Lc)) : 1, ksL = p.split ? L4(Bc) / (L4(Bc) + L4(Lc)) : 1;
-    const kvLong = p.split ? L4(Lc) / (L4(Lc) + L4(Hc)) : 1, kvShort = p.split ? L4(Bc) / (L4(Bc) + L4(Hc)) : 1;
-    const khLong = p.split ? 1 - kvLong : 1, khShort = p.split ? 1 - kvShort : 1;
+    const sh = d => Math.max(0, K * (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw)) - cT);
     const dA = -(z.topTop - p.es / 2), dB = dA + Hc;
-    const G = { min: [1, 1, 0, 0], max: [p.gg, p.gg, p.gq, p.gq], psi: p.psi1 };
+    const cover = Math.max(0, -z.topTop), dAba = Math.max(0, -z.botTop);
+    const loads = {
+      K, gd: p.gd, gp, gw: p.gw, dw, cT, dA, dB,
+      qtSelf: p.gc * p.es, qtSoil: svT(cover), qChim: p.gc * (m.vol.chimH || 0), qbSelf: p.gc * p.ei, uBase: uw(-z.base),
+      qAba: svT(dAba), wallW: p.gc * p.ep, q: p.q, Kq: K * p.q
+    };
+    const G = [p.gg, p.gg, p.gq, p.gq], combos = [];
+    for (let a = 0; a < 16; a++) combos.push({ f: [0, 1, 2, 3].map(k => ((a >> k) & 1) ? G[k] : (k < 2 ? 1 : 0)) });
+    [[1, 1, 0, 0], [1, 1, p.psi1, 0], [1, 1, 0, p.psi1], [1, 1, p.psi1, p.psi1]].forEach(f => combos.push({ f }));
+    combos.push({ f: [1, 1, 1, 1] });
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]].forEach(f => combos.push({ f, lin: true }));
+    const inp = {
+      geo: { Bc, Lc, Hc, ep: p.ep, es: p.es, ei: p.ei, ba: p.ba, bo: m.vol.openArea > 0 ? m.vol.boE : 0, lo: m.vol.openArea > 0 ? m.vol.loE : 0, chimH: m.vol.chimH || 0, h: p.hm / 100 },
+      mat: { E: Math.round(P.Ecs * 1000), nu: 0.2 }, kv: p.kv, loads, combos
+    };
+    const aux = Object.assign({}, loads, {
+      Bc, Lc, Hc, cover, dAba, k0: !!p.k0, sh, uw, pg: d => sh(d) + uw(d), pqL: K * p.q,
+      qtg: loads.qtSelf + loads.qtSoil, qAbaSoil: loads.qAba, ksB: 1, ksL: 1, kvLong: 1, kvShort: 1, Ecs: P.Ecs
+    });
+    return { inp, aux };
+  }
 
-    // combinações: ELU (todas as escolhas favorável/desfavorável), ELS frequente, característica
-    const elu = [];
-    for (let a = 0; a < 16; a++) elu.push([0, 1, 2, 3].map(k => (a >> k) & 1 ? G.max[k] : G.min[k]));
-    const els = [[1, 1, 0, 0], [1, 1, p.psi1, 0], [1, 1, 0, p.psi1], [1, 1, p.psi1, p.psi1]];
-    const allMax = G.max.slice(), carac = [1, 1, 1, 1];
-
-    function frame(S, ks, kv) {
-      const md = buildModel({ S, Hc, ep: p.ep, es: p.es, ei: p.ei, ba: p.ba, E, kv: p.kv });
-      const g = md.geo, Y = md.nodes;
-      // cargas por componente: [elementos], [pontuais]
-      const comp = [0, 1, 2, 3].map(() => ({ el: md.elems.map(() => null), pt: [] }));
-      const add = (c, k, q) => { const o = comp[c].el; o[k] = o[k] ? o[k].map((v, i) => v + q[i]) : q.slice(); };
-      md.elems.forEach((e, k) => {
-        const [x1, y1] = Y[e.i], [x2, y2] = Y[e.j], xm = (x1 + x2) / 2;
-        if (e.tag === 'top') { add(0, k, [0, -qtg * ks, 0, -qtg * ks]); add(2, k, [0, -p.q * ks, 0, -p.q * ks]); }
-        if (e.tag === 'wall') {
-          const pr = y => kv * pg(dA + (Hc - y));
-          add(0, k, [0, -wallW * ks, 0, -wallW * ks]);
-          add(1, k, [-pr(y1), 0, -pr(y2), 0]);
-          add(3, k, [-kv * pqL, 0, -kv * pqL, 0]);
-        }
-        if (e.tag === 'bot' || e.tag === 'aba') {
-          const net = (-qbSelf + uBase) * ks;
-          add(0, k, [0, net, 0, net]);
-          if (xm > g.xout + 1e-9) { add(0, k, [0, -qAbaSoil * ks, 0, -qAbaSoil * ks]); add(2, k, [0, -p.q * ks, 0, -p.q * ks]); }
-        }
-      });
-      // faixa da laje de topo entre o eixo e a face externa da parede, levada ao nó do canto
-      const nCorner = md.elems[md.top[md.top.length - 1]].j;
-      comp[0].pt.push([nCorner, 0, -qtg * ks * p.ep / 2]);
-      comp[2].pt.push([nCorner, 0, -p.q * ks * p.ep / 2]);
-
-      const combine = gm => ({
-        el: md.elems.map((_, k) => { let r = null; comp.forEach((c, i) => { if (c.el[k]) { const v = c.el[k].map(x => x * gm[i]); r = r ? r.map((a, j) => a + v[j]) : v; } }); return r; }),
-        pt: comp.flatMap((c, i) => c.pt.map(([n, fx, fy]) => [n, fx * gm[i], fy * gm[i]]))
-      });
-      const run = gm => {
-        const sol = solveFE(md, combine(gm));
-        if (!sol) return null;
-        return { sol, top: memberValues(md, sol, md.top), wall: memberValues(md, sol, md.wall), bottom: memberValues(md, sol, md.bottom) };
-      };
-      const rE = elu.map(run), rS = els.map(run), rD = run(allMax), rC = run(carac);
-      if (rE.some(r => !r) || rS.some(r => !r) || !rD || !rC) return { error: true };
-
-      // regiões de dimensionamento: índices nodais em cada membro
-      const near = (a, b) => Math.abs(a - b) < 1e-6;
-      const idxBy = (pts, f) => pts.map((q, i) => f(q) ? i : -1).filter(i => i >= 0);
-      const tp = rD.top.pts, wp = rD.wall.pts, bp = rD.bottom.pts;
-      const reg = {
-        top: { mem: 'top', ids: idxBy(tp, q => q[0] <= g.xin + 1e-6), faces: idxBy(tp, q => near(q[0], g.xin)) },
-        wall: { mem: 'wall', ids: idxBy(wp, q => q[1] <= Hc - p.es / 2 + 1e-6 && q[1] >= p.ei / 2 - 1e-6), faces: idxBy(wp, q => near(q[1], Hc - p.es / 2) || near(q[1], p.ei / 2)) },
-        bot: { mem: 'bottom', ids: idxBy(bp, q => q[0] <= g.xin + 1e-6), faces: idxBy(bp, q => near(q[0], g.xin)) },
-        aba: { mem: 'bottom', ids: idxBy(bp, q => q[0] >= g.xout - 1e-6), faces: idxBy(bp, q => near(q[0], g.xout)) }
-      };
-      // em nós compartilhados (face), o valor do elemento interno à região
-      const env = r => {
-        let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
-        rE.forEach(x => { const v = x[r.mem]; r.ids.forEach(i => { Mdi = Math.max(Mdi, v.M[i]); Mde = Math.max(Mde, -v.M[i]); }); r.faces.forEach(i => { Vd = Math.max(Vd, Math.abs(v.V[i])); }); });
-        rS.forEach(x => { const v = x[r.mem]; r.ids.forEach(i => { Msi = Math.max(Msi, v.M[i]); Mse = Math.max(Mse, -v.M[i]); }); });
-        return { Mdi, Mde, Msi, Mse, Vd };
-      };
-      // pressão de contato no solo (característica): p = −k·w nos elementos ativos
-      const contact = md.bottom.map(k => {
-        const e = md.elems[k], s = rC.sol, w = (s.u[3 * e.i + 1] + s.u[3 * e.j + 1]) / 2;
-        return { x: (md.nodes[e.i][0] + md.nodes[e.j][0]) / 2, L: Math.abs(md.nodes[e.j][0] - md.nodes[e.i][0]), p: s.active[k] ? Math.max(0, -p.kv * w) : 0, w };
-      });
-      return {
-        S, Hc, geo: g, ks, kv,
-        top: env(reg.top), wall: env(reg.wall), bot: env(reg.bot), aba: p.ba > 0 ? env(reg.aba) : null,
-        draw: { top: rD.top, wall: rD.wall, bottom: rD.bottom, reg },
-        uplift: rE.some(x => x.sol.uplift) || rS.some(x => x.sol.uplift), floated: rE.some(x => x.sol.floated),
-        upliftC: rC.sol.uplift, contact,
-        pMax: Math.max(...contact.map(c => c.p)), pMin: Math.min(...contact.filter((c, i) => true).map(c => c.p)), wMax: Math.max(...contact.map(c => -c.w)) * 1000
-      };
-    }
-    const fB = frame(Bc, ksB, kvLong), fL = frame(Lc, ksL, kvShort);
-    if (fB.error || fL.error) return { error: 'O sistema não pôde ser resolvido. Confira a geometria e o coeficiente de mola.' };
-
-    // Anel horizontal na cota da face superior da laje inferior
-    const dRing = -z.botTop;
-    const pRing = [0, pg(dRing), 0, pqL];
-    function envelope(comps, i0, i1) {
-      const comb = (vals, sign) => vals.reduce((s, v, k) => s + ((v * sign > 0) ? G.max[k] * v : G.min[k] * v), 0);
-      const ser = (vals, sign) => vals.reduce((s, v, k) => s + (PERM[k] ? v : ((v * sign > 0) ? G.psi * v : 0)), 0);
-      const at = (i, key) => comps.map(c => c[key][i]);
-      let Mdi = 0, Mde = 0, Msi = 0, Mse = 0, Vd = 0;
-      for (let i = i0; i <= i1; i++) {
-        const mm = at(i, 'M');
-        Mdi = Math.max(Mdi, comb(mm, 1)); Mde = Math.max(Mde, -comb(mm, -1));
-        Msi = Math.max(Msi, ser(mm, 1)); Mse = Math.max(Mse, -ser(mm, -1));
-      }
-      [i0, i1].forEach(i => { const v = at(i, 'V'); Vd = Math.max(Vd, Math.abs(comb(v, 1)), Math.abs(comb(v, -1))); });
-      const all = key => comps[0][key].map((_, i) => comps.reduce((s, c, k) => s + G.max[k] * c[key][i], 0));
-      return { Mdi, Mde, Msi, Mse, Vd, Mall: all('M'), Vall: all('V'), xs: comps[0].xs, i0, i1 };
-    }
-    const idx = (L, x) => Math.min(N, Math.max(0, x / L * N));
-    function ring() {
-      const mk = (L, kh, khO) => pRing.map(pc => {
-        const pa = kh * pc, pb = khO * pc;
-        const Mc = (L === Lc ? (pa * Lc * Lc * Lc + pb * Bc * Bc * Bc) : (pb * Lc * Lc * Lc + pa * Bc * Bc * Bc)) / (12 * (Lc + Bc));
-        const xs = [], M = [], V = [];
-        for (let i = 0; i <= N; i++) { const x = L * i / N; xs.push(x); M.push(pa * x * (L - x) / 2 - Mc); V.push(pa * (L / 2 - x)); }
-        return { xs, M, V };
-      });
-      const lo = c => Math.ceil(idx(c, p.ep / 2)), hi = c => Math.floor(idx(c, c - p.ep / 2));
-      return { Lc, Bc, d: dRing, long: envelope(mk(Lc, khLong, khShort), lo(Lc), hi(Lc)), short: envelope(mk(Bc, khShort, khLong), lo(Bc), hi(Bc)) };
-    }
-    const rg = ring();
-
-    // Posições de armadura
-    const F = { top: ['inferior (interna)', 'superior (externa)'], bot: ['superior (interna)', 'inferior (externa)'], aba: ['superior', 'inferior'], wall: ['interna', 'externa'] };
+  /* ----- pós-processamento: regiões de dimensionamento e envoltórias ----- */
+  // índice da direção nas resultantes locais [M1, M2, M12, Q1, Q2, N1, N2, N12]
+  const DIR = { top: { B: 0, L: 1 }, bot: { L: 0, B: 1 }, wx: { h: 0, v: 1 }, wy: { v: 0, h: 1 } };
+  function post(m, fe, aux) {
+    const p = m.p, P = mat(p), G = fe.geo, Hc = aux.Hc, tol = 1e-6;
+    const node = i => fe.nodes[i];
+    const zf1 = p.ei / 2, zf2 = Hc - p.es / 2;
+    const inZ = q => q[2] >= zf1 - tol && q[2] <= zf2 + tol;
     const groups = [
-      { key: 'top', name: 'Laje de topo', h: p.es, items: [['top-B', 'Paralela a B', fB.top, F.top], ['top-L', 'Paralela a L', fL.top, F.top]] },
-      { key: 'bot', name: 'Laje de fundo (vão interno)', h: p.ei, items: [['bot-B', 'Paralela a B', fB.bot, F.bot], ['bot-L', 'Paralela a L', fL.bot, F.bot]] }
+      { key: 'top', name: 'Laje de topo', h: p.es, s: 'top', faces: ['inferior (interna)', 'superior (externa)'], reg: q => q[0] <= G.xf + tol && q[1] <= G.yf + tol,
+        items: [['top-B', 'Paralela a B', 'B', q => Math.abs(q[0] - G.xf) < tol && q[1] <= G.yf + tol], ['top-L', 'Paralela a L', 'L', q => Math.abs(q[1] - G.yf) < tol && q[0] <= G.xf + tol]] },
+      { key: 'bot', name: 'Laje de fundo (vão interno)', h: p.ei, s: 'bot', faces: ['superior (interna)', 'inferior (externa)'], reg: q => q[0] <= G.xf + tol && q[1] <= G.yf + tol,
+        items: [['bot-B', 'Paralela a B', 'B', q => Math.abs(q[0] - G.xf) < tol && q[1] <= G.yf + tol], ['bot-L', 'Paralela a L', 'L', q => Math.abs(q[1] - G.yf) < tol && q[0] <= G.xf + tol]] }
     ];
-    if (p.ba > 0) groups.push({ key: 'aba', name: 'Aba da laje de fundo (balanço)', h: p.ei, items: [['aba-B', 'Abas nos lados de B', fB.aba, F.aba], ['aba-L', 'Abas nos lados de L', fL.aba, F.aba]] });
+    if (p.ba > 0) groups.push({ key: 'aba', name: 'Aba da laje de fundo (balanço)', h: p.ei, s: 'bot', faces: ['superior', 'inferior'], regs: { B: q => q[0] >= G.xo - tol, L: q => q[1] >= G.yo - tol },
+      items: [['aba-B', 'Balanço em B (junto às paredes longas)', 'B', q => Math.abs(q[0] - G.xo) < tol], ['aba-L', 'Balanço em L (junto às paredes curtas)', 'L', q => Math.abs(q[1] - G.yo) < tol]] });
     groups.push(
-      { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, items: [['wl-v', 'Vertical', fB.wall, F.wall], ['wl-h', 'Horizontal', rg.long, F.wall]] },
-      { key: 'ws', name: 'Paredes curtas (ao longo de B)', h: p.ep, items: [['ws-v', 'Vertical', fL.wall, F.wall], ['ws-h', 'Horizontal', rg.short, F.wall]] });
+      { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, s: 'wx', faces: ['interna', 'externa'], reg: q => q[1] <= G.yf + tol && inZ(q),
+        items: [['wl-v', 'Vertical', 'v', q => (Math.abs(q[2] - zf1) < tol || Math.abs(q[2] - zf2) < tol) && q[1] <= G.yf + tol], ['wl-h', 'Horizontal', 'h', q => Math.abs(q[1] - G.yf) < tol && inZ(q)]] },
+      { key: 'ws', name: 'Paredes curtas (ao longo de B)', h: p.ep, s: 'wy', faces: ['interna', 'externa'], reg: q => q[0] <= G.xf + tol && inZ(q),
+        items: [['ws-v', 'Vertical', 'v', q => (Math.abs(q[2] - zf1) < tol || Math.abs(q[2] - zf2) < tol) && q[0] <= G.xf + tol], ['ws-h', 'Horizontal', 'h', q => Math.abs(q[0] - G.xf) < tol && inZ(q)]] });
+
     const rows = [], shear = [];
+    const [e0, e1] = NCOMB.elu, [s0, s1] = NCOMB.els;
     groups.forEach(g => {
-      const hc = g.h * 100, mn = asMin(hc, p.dl, P);
-      g.items.forEach(([key, dir, e, faces]) => {
-        // na aba, o apoio (face da parede) traciona a face superior: ρ1 vem da armadura superior
-        const supKey = g.key === 'aba' ? key + '-int' : key + '-ext';
-        [['int', e.Mdi, e.Msi, faces[0]], ['ext', e.Mde, e.Mse, faces[1]]].forEach(([side, Md, Ms, face]) => {
-          const r = flex(Md, hc, p.dl, P);
+      const hc = g.h * 100, mn = asMin(hc, p.dl, P), list = fe.surfNodes[g.s];
+      g.items.forEach(([key, dir, dk, line]) => {
+        const k = DIR[g.s][dk], reg = g.regs ? g.regs[dk] : g.reg;
+        const idx = [], lineIdx = [];
+        list.forEach((nd, j) => { const q = node(nd); if (reg(q)) idx.push(j); if (line(q)) lineIdx.push(j); });
+        ['int', 'ext'].forEach((side, si) => {
+          let best = { As: -1 }, Ms = 0, Mmax = 0;
+          for (let c = e0; c < e1; c++) {
+            const R = fe.results[c].res[g.s];
+            idx.forEach(j => {
+              const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), Md = (side === 'ext' ? wa.e : wa.i)[k], Nd = R[o + 5 + k];
+              if (Md > Mmax) Mmax = Md;
+              const r = flexN(Md, Nd, hc, p.dl, P), As = Number.isFinite(r.As) ? r.As : 1e9;
+              if (As > best.As) best = { As, r, Md, Nd, c, j };
+            });
+          }
+          for (let c = s0; c < s1; c++) {
+            const R = fe.results[c].res[g.s];
+            idx.forEach(j => { const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), v = (side === 'ext' ? wa.e : wa.i)[k]; if (v > Ms) Ms = v; });
+          }
+          const r = best.r || { As: 0, xi: 0, ok: true, mode: 'flex' };
           const AsReq = Math.max(Number.isFinite(r.As) ? r.As : Infinity, mn.As);
-          rows.push({ key: key + '-' + side, group: g.key, el: g.name, dir, face, side, h: hc, Md, Ms, flex: r,
-            AsCalc: r.As, AsMin: mn.As, AsReq, govMin: !(r.As > mn.As), sug: suggest(AsReq, Ms, hc, p.dl, P, p.wlim) });
+          rows.push({ key: key + '-' + side, group: g.key, el: g.name, dir, face: g.faces[si], side, h: hc, Md: best.Md || 0, Nd: best.Nd || 0, Mmax, Ms, flex: r,
+            AsCalc: r.As, AsMin: mn.As, AsReq, govMin: !(r.As > mn.As), sug: suggest(AsReq, Ms, hc, p.dl, P, p.wlim),
+            at: best.j != null ? node(list[best.j]) : null, combo: best.c });
         });
-        shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd: e.Vd, extKey: supKey });
+        let Vd = 0, Vat = null;
+        for (let c = e0; c < e1; c++) { const R = fe.results[c].res[g.s]; lineIdx.forEach(j => { const v = Math.abs(R[8 * j + 3 + k]); if (v > Vd) { Vd = v; Vat = node(list[j]); } }); }
+        shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd, at: Vat, extKey: key + (g.key === 'aba' ? '-int' : '-ext') });
       });
     });
 
+    // resumo da análise
+    const car = fe.results[NCOMB.car];
+    let pMax = 0, wMax = 0;
+    fe.surfNodes.bot.forEach(i => { if (car.press[i] > pMax) pMax = car.press[i]; const w = -car.disp[3 * i + 2]; if (w > wMax) wMax = w; });
+    const elu = fe.results.slice(e0, e1);
+    // pressão de contato ao longo das faixas centrais (combinação característica)
+    const strip = dir => fe.surfNodes.bot.map(i => node(i)).map((q, k) => ({ q, i: fe.surfNodes.bot[k] }))
+      .filter(o => dir === 'B' ? Math.abs(o.q[1]) < tol : Math.abs(o.q[0]) < tol)
+      .map(o => ({ x: dir === 'B' ? o.q[0] : o.q[1], p: car.press[o.i] })).sort((a, b) => a.x - b.x);
+    const frames = {};
+    ['B', 'L'].forEach(d => {
+      const xw = d === 'B' ? G.xw : G.yw, xf = d === 'B' ? G.xf : G.yf, xo = d === 'B' ? G.xo : G.yo;
+      frames[d] = { geo: { xin: xf, xw, xtip: p.ba > 0 ? xo + p.ba : xo }, contact: strip(d), pMax, wMax: wMax * 1000, upliftC: car.lifted > 0, Rtot: car.R, Ftot: car.Fz };
+    });
     return {
-      P, K, k0: !!p.k0, Bc, Lc, Hc, dA, dB, dw, cover, qtSelf, qtSoil, qtg, qbSelf, qAbaSoil, dAba, wallW, uBase, E,
-      ksB, ksL, kvLong, kvShort, khLong, khShort, pg, sh, uw, pqL, frames: { B: fB, L: fL }, ring: rg, groups, rows, shear
+      P, rows, shear, groups, frames, pMax, wMax: wMax * 1000, R: car.R, Fz: car.Fz,
+      lifted: Math.max(...elu.map(r => r.lifted || 0)), floated: elu.some(r => r.floated), nSpring: fe.surfNodes.bot.length
     };
   }
 
   function check(row, phi, s, p, P) {
     const As = barA(phi) * 100 / s;
     const c = crack(row.Ms, As, phi, s, row.h, p.dl, P);
-    return { As, c, okAs: As >= row.AsReq - 1e-9, okW: c.wk <= p.wlim + 1e-9, okFlex: row.flex.ok };
+    return { As, c, okAs: As >= row.AsReq - 1e-9, okW: c.wk <= p.wlim + 1e-9, okFlex: row.flex.ok, okPhi: phi <= row.h * 10 / 8 + 1e-9, okS: s <= sMax(row.h) + 1e-9 };
   }
-  return { compute, check, flex, asMin, crack, vrd1, suggest, barA, BARS, SPAC, solveFE, buildModel, memberValues, mat };
+  return { compute: null, check, flex, flexN, asMin, crack, vrd1, suggest, woodArmer, barA, BARS, SPAC, mat, feInput, post, NCOMB, DIR, sMax };
 })();
 
 /* ---------- Desenho da seção transversal ---------- */
@@ -1123,9 +1433,10 @@ const DEFAULTS = {
   B: 2.10, L: 2.50, H: 2.10, ep: 0.20, ei: 0.20, es: 0.20, zs: -0.50, ba: 0.20, gc: 25,
   gd: 17, gsat: 19, phi: 30, c: 0, zw: -2.00, gw: 10,
   fc: 1.10, fs: 1.30, fst: 1.10, fa: 1.10, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
-  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, split: false, kv: 30000
+  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, kv: 30000, hm: 10
 };
-const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim', 'q', 'gg', 'gq', 'psi1', 'k0', 'split', 'kv'];
+const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim'];
+const ESF_KEYS = ['q', 'gg', 'gq', 'psi1', 'k0', 'kv', 'hm'];
 const FIELDS = [
   { key: 'B', lab: 'Largura, B', tip: 'Largura interna livre', unit: 'm', gt: 0 },
   { key: 'L', lab: 'Comprimento, L', tip: 'Comprimento interno livre', unit: 'm', gt: 0 },
@@ -1161,7 +1472,8 @@ const FIELDS = [
   { key: 'gg', lab: 'γ<sub>g</sub> permanentes', tip: 'Coeficiente de ponderação das ações permanentes (solo, água, peso próprio)', unit: '', ge: 1, dec: 2 },
   { key: 'gq', lab: 'γ<sub>q</sub> sobrecarga', tip: 'Coeficiente de ponderação da sobrecarga', unit: '', ge: 0, dec: 2 },
   { key: 'psi1', lab: 'ψ<sub>1</sub> (frequente)', tip: 'Fator de redução da sobrecarga na combinação frequente (fissuração)', unit: '', ge: 0, le: 1, dec: 2 },
-  { key: 'kv', lab: 'Coeficiente de mola, k<sub>v</sub>', tip: 'Coeficiente de reação vertical do solo (Winkler)', unit: 'kN/m³', gt: 0, dec: 0 }
+  { key: 'kv', lab: 'Coeficiente de mola, k<sub>v</sub>', tip: 'Coeficiente de reação vertical do solo (Winkler)', unit: 'kN/m³', gt: 0, dec: 0 },
+  { key: 'hm', lab: 'Tamanho dos elementos, h', tip: 'Tamanho máximo dos elementos da malha', unit: 'cm', ge: 5, le: 30, dec: 1 }
 ];
 // Organização do painel de dados: seção, subgrupo, colunas e campos.
 const LAYOUT = [
@@ -1179,7 +1491,8 @@ const LAYOUT = [
   { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm.' },
   { sec: 'aa', title: 'Apoio elástico (Winkler)', cols: 2, keys: ['kv'], note: 'Molas sob a laje de fundo e a aba, só de compressão (as tracionadas são desligadas). Ordem de grandeza: argila mole 5.000–15.000; areia média 20.000–50.000; areia compacta 50.000–120.000 kN/m³. Use o valor do laudo geotécnico.' },
   { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, sobre a aba e nas paredes como K · q.' },
-  { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], check: { key: 'split', text: 'Repartir as cargas entre as duas direções (grelha simplificada). Desmarcado: cada faixa leva a carga inteira.' } }
+  { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], note: 'ELU: cada ação com 1,0 ou γ<sub>g</sub> (permanentes) e 0 ou γ<sub>q</sub> (sobrecarga), nas 16 combinações. ELS frequente: g + ψ<sub>1</sub> q.' },
+  { sec: 'emod', title: 'Malha', cols: 2, keys: ['hm'], note: 'Elementos de casca de até h; junto às ligações parede-laje a malha é refinada (até e/4). 10 cm é um bom padrão; malhas abaixo de 7,5 cm ficam lentas.' }
 ];
 const decOf = f => f.dec != null ? f.dec : (['phi', 'gc', 'gd', 'gsat', 'gw'].includes(f.key) ? 1 : 2);
 
@@ -1527,7 +1840,7 @@ async function buildMemorial(m) {
   return zipStore(files);
 }
 
-/* ---------- Aba Armaduras: tabelas e desenhos ---------- */
+/* ---------- Abas Esforços e Armaduras: tabelas e desenhos ---------- */
 const fb = phi => String(phi).replace('.', ',');
 const fsp = s => fmt(s, 1).replace(/,0$/, '');
 
@@ -1535,34 +1848,217 @@ function armSrcHtml(m) {
   const p = m.p, it = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
   return it('Internas B × L × H', `${fmt(p.B)} × ${fmt(p.L)} × ${fmt(p.H)} m`) +
     it('Paredes · fundo · topo', `${fmt(p.ep)} · ${fmt(p.ei)} · ${fmt(p.es)} m`) +
+    it('Aba', `${fmt(p.ba)} m`) +
     it('Topo da laje · base', `${fz(m.z.topTop)} · ${fz(m.z.base)} m`) +
-    it('γ<sub>d</sub> · γ<sub>sat</sub> · γ<sub>c</sub>', `${fmt(p.gd, 1)} · ${fmt(p.gsat, 1)} · ${fmt(p.gc, 1)}`) +
-    it('φ · c', `${fmt(p.phi, 1)}° · ${fmt(p.c, 1)} kPa`) +
-    it('N.A. z<sub>w</sub> (operação)', `${fz(p.zw)} m`);
+    it('N.A. z<sub>w</sub> (operação)', `${fz(p.zw)} m`) +
+    it('k<sub>v</sub> · malha', `${fmt(p.kv, 0)} kN/m³ · ${fmt(p.hm, 1)} cm`);
 }
 
-function armVerdictsHtml(res) {
-  const card = (title, tag, ok, big, lab) => `<article class="stage"><div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${ok ? '<span class="pill ok">✓ Atende</span>' : '<span class="pill bad">✕ Não atende</span>'}</div><div class="fs"><span class="big ${ok ? 'ok' : 'bad'}">${big}</span><span class="lab">${lab}</span></div></article>`;
-  return card('Flexão', 'ELU, envoltória', res.nFlex === res.n, `${res.nFlex}/${res.n}`, 'faces com A<sub>s,ef</sub> ≥ A<sub>s,nec</sub>') +
-    card('Fissuração', 'ELS, combinação frequente', res.wMax <= res.wlim + 1e-9, fmt(res.wMax, 2), `w<sub>k,máx</sub> (mm)<br>limite ${fmt(res.wlim, 2)} mm`) +
-    card('Cortante', 'sem estribos, V<sub>Rd1</sub>', res.vMax <= 1 + 1e-9, fmt(res.vMax, 2), 'maior V<sub>Sd</sub> ÷ V<sub>Rd1</sub><br>critério ≤ 1,00');
+const card = (title, tag, state, big, lab) => `<article class="stage"><div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${state === 'ok' ? '<span class="pill ok">✓ Atende</span>' : state === 'bad' ? '<span class="pill bad">✕ Não atende</span>' : state === 'info' ? '' : `<span class="pill neutral">${state}</span>`}</div><div class="fs"><span class="big ${state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : ''}">${big}</span><span class="lab">${lab}</span></div></article>`;
+
+function feSummaryHtml(fe, A) {
+  const err = A.Fz !== 0 ? Math.abs(A.R - A.Fz) / Math.abs(A.Fz) * 100 : 0;
+  return card('Modelo', 'elementos finitos de casca', 'info', fmt(fe.stats.nElem, 0), `elementos (¼ da caixa)<br>${fmt(fe.stats.nEq, 0)} equações · ${fmt(fe.stats.ms / 1000, 1)} s`) +
+    card('Reação do solo', 'característica g + q', 'info', fmt(A.pMax, 1), `kPa, pressão máxima<br>recalque máx. ${fmt(A.wMax, 2)} mm`) +
+    card('Equilíbrio', 'Σ reações = Σ cargas', err < 0.1 ? 'ok' : 'bad', fmt(A.R, 1), `kN de reação<br>cargas: ${fmt(A.Fz, 1)} kN (${fmt(err, 3)} %)`);
 }
 
-function armTableHtml(A, sel, chk) {
-  const opt = (vals, cur, f) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${f(v)}</option>`).join('');
-  let h = `<table class="armt"><thead><tr><th class="l">Armadura</th><th class="l">Face tracionada</th><th>M<sub>d</sub></th><th>M<sub>ser</sub></th><th>A<sub>s,calc</sub></th><th>A<sub>s,mín</sub></th><th>A<sub>s,nec</sub></th><th>Barras adotadas</th><th>A<sub>s,ef</sub></th><th>w<sub>k</sub></th><th class="l">Situação</th></tr>
-    <tr class="units"><th></th><th></th><th>kN·m/m</th><th>kN·m/m</th><th>cm²/m</th><th>cm²/m</th><th>cm²/m</th><th></th><th>cm²/m</th><th>mm</th><th></th></tr></thead><tbody>`;
+/* ----- mapa de cores de uma superfície ----- */
+const MAP_SURF = {
+  top: { name: 'Laje de topo', dirs: ['B', 'L'], plane: 'planta' },
+  bot: { name: 'Laje de fundo e aba', dirs: ['L', 'B'], plane: 'planta' },
+  wx: { name: 'Paredes longas', dirs: ['horizontal', 'vertical'], plane: 'vista' },
+  wy: { name: 'Paredes curtas', dirs: ['vertical', 'horizontal'], plane: 'vista' }
+};
+function mapComps(s) {
+  const d = MAP_SURF[s].dirs, txt = x => /^[BL]$/.test(x) ? `barras paralelas a ${x}` : `barras ${x === 'vertical' ? 'verticais' : 'horizontais'}`;
+  const out = [
+    ['M1', `Momento fletor, ${txt(d[0])}`, 'kN·m/m'], ['M2', `Momento fletor, ${txt(d[1])}`, 'kN·m/m'], ['M12', 'Momento volvente m_xy', 'kN·m/m'],
+    ['Q1', `Esforço cortante, direção ${d[0]}`, 'kN/m'], ['Q2', `Esforço cortante, direção ${d[1]}`, 'kN/m'],
+    ['N1', `Esforço normal, direção ${d[0]}`, 'kN/m'], ['N2', `Esforço normal, direção ${d[1]}`, 'kN/m'],
+    ['w', 'Deslocamento normal à superfície', 'mm']
+  ];
+  if (s === 'bot') out.push(['p', 'Pressão no solo (molas)', 'kPa']);
+  return out;
+}
+const CASES = [
+  [15, 'ELU: todas as ações majoradas'], [19, 'ELS frequente (g + ψ₁ q)'], [20, 'Característica (g + q)'],
+  [21, 'Só permanentes verticais (linear)'], [22, 'Só empuxo e água (linear)'], [23, 'Só sobrecarga vertical (linear)'], [24, 'Só sobrecarga lateral (linear)']
+];
+function surfCoords(s, q) { return s === 'top' || s === 'bot' ? [q[0], q[1]] : s === 'wx' ? [q[1], q[2]] : [q[0], q[2]]; }
+// sinais que trocam ao espelhar em h (1ª coordenada) e em v (2ª, só lajes)
+const FLIP = { top: { h: [3, 2, 7], v: [4, 2, 7] }, bot: { h: [4, 2, 7], v: [3, 2, 7] }, wx: { h: [3, 2, 7], v: [] }, wy: { h: [4, 2, 7], v: [] } };
+function nodeValue(fe, cIdx, s, j, comp) {
+  const r = fe.results[cIdx];
+  if (comp === 'w') { const i = fe.surfNodes[s][j], T = { top: [0, 0, 1], bot: [0, 0, -1], wx: [1, 0, 0], wy: [0, 1, 0] }[s]; return 1000 * (T[0] * r.disp[3 * i] + T[1] * r.disp[3 * i + 1] + T[2] * r.disp[3 * i + 2]); }
+  if (comp === 'p') return r.press[fe.surfNodes[s][j]];
+  const k = { M1: 0, M2: 1, M12: 2, Q1: 3, Q2: 4, N1: 5, N2: 6, N12: 7 }[comp];
+  return r.res[s][8 * j + k];
+}
+function mapFigure(fe, A, m, s, comp, cIdx) {
+  const kIdx = { M1: 0, M2: 1, M12: 2, Q1: 3, Q2: 4, N1: 5, N2: 6, N12: 7 }[comp];
+  const idxOf = new Map(fe.surfNodes[s].map((i, j) => [i, j]));
+  const vals = fe.surfNodes[s].map((_, j) => nodeValue(fe, cIdx, s, j, comp));
+  const slab = s === 'top' || s === 'bot';
+  const els = fe.elems.filter(e => e.s === s);
+  let hmax = 0, vmin = Infinity, vmaxC = -Infinity;
+  els.forEach(e => e.n.forEach(i => { const [h, v] = surfCoords(s, fe.nodes[i]); hmax = Math.max(hmax, h); vmin = Math.min(vmin, v); vmaxC = Math.max(vmaxC, v); }));
+  const H0 = slab ? -vmaxC : vmin, H1 = vmaxC;
+  const W = 720, Hh = 470, pad = 56;
+  const sc = Math.min((W - 2 * pad - 70) / (2 * hmax), (Hh - 2 * pad) / (H1 - H0));
+  const cx = (W - 70) / 2, cy = Hh / 2 + (H1 + H0) / 2 * sc;
+  const X = h => cx + h * sc, Y = v => cy - v * sc;
+  const sym = v => [v];
+  const vmax = Math.max(1e-12, ...vals.map(Math.abs));
+  let rects = '', best = { v: -Infinity }, worst = { v: Infinity };
+  const flipH = FLIP[s].h.includes(kIdx), flipV = FLIP[s].v.includes(kIdx);
+  const mirrors = slab ? [[1, 1], [-1, 1], [1, -1], [-1, -1]] : [[1, 1], [-1, 1]];
+  els.forEach(e => {
+    const pts = e.n.map(i => surfCoords(s, fe.nodes[i]));
+    const v = e.n.reduce((a, i) => a + vals[idxOf.get(i)], 0) / 4;
+    const h0 = Math.min(...pts.map(q => q[0])), h1 = Math.max(...pts.map(q => q[0])), v0 = Math.min(...pts.map(q => q[1])), v1 = Math.max(...pts.map(q => q[1]));
+    mirrors.forEach(([sh, sv]) => {
+      const val = v * (sh < 0 && flipH ? -1 : 1) * (sv < 0 && flipV ? -1 : 1);
+      const xa = X(sh > 0 ? h0 : -h1), xb = X(sh > 0 ? h1 : -h0), ya = Y(sv > 0 ? v1 : -v0), yb = Y(sv > 0 ? v0 : -v1);
+      const op = 0.06 + 0.86 * Math.min(1, Math.abs(val) / vmax);
+      rects += `<rect x="${xa.toFixed(1)}" y="${ya.toFixed(1)}" width="${(xb - xa + 0.4).toFixed(1)}" height="${(yb - ya + 0.4).toFixed(1)}" style="fill:var(--${val >= 0 ? 'pos' : 'neg'});fill-opacity:${op.toFixed(3)}"><title>${fmt(val, 2)}</title></rect>`;
+      const ccx = (xa + xb) / 2, ccy = (ya + yb) / 2;
+      if (val > best.v) best = { v: val, x: ccx, y: ccy };
+      if (val < worst.v) worst = { v: val, x: ccx, y: ccy };
+    });
+  });
+  // contorno, faces dos apoios e eixos
+  const G = fe.geo, lines = [];
+  const dash = (x1, y1, x2, y2) => lines.push(`<line x1="${X(x1).toFixed(1)}" y1="${Y(y1).toFixed(1)}" x2="${X(x2).toFixed(1)}" y2="${Y(y2).toFixed(1)}" style="stroke:var(--ink);stroke-width:.8;stroke-dasharray:4 3;opacity:.55"/>`);
+  if (s === 'top' || s === 'bot') {
+    [G.xf, -G.xf].forEach(x => dash(x, -G.yf - (s === 'bot' ? 0 : 0), x, G.yf)); [G.yf, -G.yf].forEach(y => dash(-G.xf, y, G.xf, y));
+    if (s === 'bot') { [G.xo, -G.xo].forEach(x => dash(x, -G.yo, x, G.yo)); [G.yo, -G.yo].forEach(y => dash(-G.xo, y, G.xo, y)); }
+  } else {
+    const hf = s === 'wx' ? G.yf : G.xf;
+    [hf, -hf].forEach(h => dash(h, 0, h, A.Hc)); [m.p.ei / 2, A.Hc - m.p.es / 2].forEach(v => dash(-hmax, v, hmax, v));
+  }
+  const ext = `<rect x="${X(-hmax).toFixed(1)}" y="${Y(H1).toFixed(1)}" width="${(2 * hmax * sc).toFixed(1)}" height="${((H1 - H0) * sc).toFixed(1)}" style="fill:none;stroke:var(--ink);stroke-width:1.2"/>`;
+  const mark = (o, lab) => o.v === Infinity || o.v === -Infinity || Math.abs(o.v) < vmax * 0.02 ? '' : `<circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="3.5" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.2"/><text class="halo" x="${(o.x + 6).toFixed(1)}" y="${(o.y - 6).toFixed(1)}" font-size="12" font-family="var(--f-mono)" style="fill:var(--ink)">${lab} ${fmt(o.v, 2)}</text>`;
+  // legenda
+  const lx = W - 50, ly0 = pad, lh = Hh - 2 * pad, unit = (mapComps(s).find(c => c[0] === comp) || [, , ''])[2];
+  let leg = '';
+  for (let i = 0; i < 40; i++) { const t = 1 - i / 39 * 2, op = 0.06 + 0.86 * Math.abs(t); leg += `<rect x="${lx}" y="${(ly0 + i * lh / 40).toFixed(1)}" width="14" height="${(lh / 40 + 0.5).toFixed(1)}" style="fill:var(--${t >= 0 ? 'pos' : 'neg'});fill-opacity:${op.toFixed(3)}"/>`; }
+  leg += `<rect x="${lx}" y="${ly0}" width="14" height="${lh}" style="fill:none;stroke:var(--line)"/>`;
+  leg += `<text x="${lx + 7}" y="${ly0 - 8}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">+${fmt(vmax, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 16}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">−${fmt(vmax, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 30}" text-anchor="middle" font-size="10.5" style="fill:var(--muted)">${unit}</text>`;
+  const axH = slab ? 'B (x)' : (s === 'wx' ? 'L (y)' : 'B (x)'), axV = slab ? 'L (y)' : 'altura (z)';
+  const svg = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Mapa de cores: ${MAP_SURF[s].name}">${rects}${lines.join('')}${ext}${mark(best, 'máx')}${mark(worst, 'mín')}${leg}
+    <text x="${cx}" y="${Hh - 8}" text-anchor="middle" font-size="12" style="fill:var(--muted)">${axH}</text>
+    <text transform="translate(14 ${Hh / 2}) rotate(-90)" text-anchor="middle" font-size="12" style="fill:var(--muted)">${axV}</text></svg>`;
+  return { svg, max: best.v, min: worst.v, unit };
+}
+
+/* ----- diagramas ao longo das faixas centrais ----- */
+function stripMembers(fe, A, view, kind, cIdx) {
+  const tol = 1e-6, G = fe.geo, r = fe.results[cIdx], mems = [];
+  const pick = (s, pred, sortBy, kM, kQ) => {
+    const idx = []; fe.surfNodes[s].forEach((i, j) => { if (pred(fe.nodes[i])) idx.push(j); });
+    idx.sort((a, b) => sortBy(fe.nodes[fe.surfNodes[s][a]]) - sortBy(fe.nodes[fe.surfNodes[s][b]]));
+    return { pts: idx.map(j => fe.nodes[fe.surfNodes[s][j]]), val: idx.map(j => r.res[s][8 * j + (kind === 'M' ? kM : kQ)]) };
+  };
+  if (view === 'B') {
+    const t = pick('top', q => Math.abs(q[1]) < tol, q => q[0], 0, 3), w = pick('wx', q => Math.abs(q[1]) < tol, q => q[2], 1, 4), b = pick('bot', q => Math.abs(q[1]) < tol, q => q[0], 1, 4);
+    mems.push({ P: t.pts.map(q => [q[0], q[2]]), v: t.val, n: [0, 1], faces: [G.xf], lab: true }, { P: t.pts.map(q => [-q[0], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), n: [0, 1] });
+    mems.push({ P: w.pts.map(q => [q[0], q[2]]), v: w.val, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[0], q[2]]), v: w.val, n: [-1, 0] });
+    mems.push({ P: b.pts.map(q => [q[0], q[2]]), v: b.val, n: [0, -1], faces: [G.xf, G.xo], lab: true }, { P: b.pts.map(q => [-q[0], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), n: [0, -1] });
+    return { mems, span: [Math.max(...b.pts.map(q => q[0])), A.Hc], axes: ['B (x)', 'z'] };
+  }
+  if (view === 'L') {
+    const t = pick('top', q => Math.abs(q[0]) < tol, q => q[1], 1, 4), w = pick('wy', q => Math.abs(q[0]) < tol, q => q[2], 0, 3), b = pick('bot', q => Math.abs(q[0]) < tol, q => q[1], 0, 3);
+    mems.push({ P: t.pts.map(q => [q[1], q[2]]), v: t.val, n: [0, 1], faces: [G.yf], lab: true }, { P: t.pts.map(q => [-q[1], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), n: [0, 1] });
+    mems.push({ P: w.pts.map(q => [q[1], q[2]]), v: w.val, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[1], q[2]]), v: w.val, n: [-1, 0] });
+    mems.push({ P: b.pts.map(q => [q[1], q[2]]), v: b.val, n: [0, -1], faces: [G.yf, G.yo], lab: true }, { P: b.pts.map(q => [-q[1], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), n: [0, -1] });
+    return { mems, span: [Math.max(...b.pts.map(q => q[1])), A.Hc], axes: ['L (y)', 'z'] };
+  }
+  // planta na meia altura livre das paredes
+  const zs = [...new Set(fe.nodes.map(q => +q[2].toFixed(6)))].sort((a, b) => a - b), zt = (A.p.ei / 2 + A.Hc - A.p.es / 2) / 2;
+  const zc = zs.reduce((b, z) => Math.abs(z - zt) < Math.abs(b - zt) ? z : b, zs[0]);
+  const wx = pick('wx', q => Math.abs(q[2] - zc) < tol, q => q[1], 0, 3), wy = pick('wy', q => Math.abs(q[2] - zc) < tol, q => q[0], 1, 4);
+  [1, -1].forEach(sx => [1, -1].forEach(sy => {
+    mems.push({ P: wx.pts.map(q => [sx * q[0], sy * q[1]]), v: wx.val.map(x => kind === 'V' && sy < 0 ? -x : x), n: [sx, 0], faces: [G.yf], fAxis: 1, lab: sx > 0 && sy > 0 });
+    mems.push({ P: wy.pts.map(q => [sx * q[0], sy * q[1]]), v: wy.val.map(x => kind === 'V' && sx < 0 ? -x : x), n: [0, sy], faces: [G.xf], fAxis: 0, lab: sx > 0 && sy > 0 });
+  }));
+  return { mems, span: [G.xw, G.yw], axes: ['B (x)', 'L (y)'], zc, plan: true };
+}
+function stripFigure(fe, A, view, kind, cIdx) {
+  const S = stripMembers(fe, A, view, kind, cIdx);
+  const W = 700, H = 500, mx = 120, my = 96;
+  const spanX = 2 * S.span[0], spanY = S.plan ? 2 * S.span[1] : S.span[1];
+  const sc = Math.min((W - 2 * mx) / spanX, (H - 2 * my) / spanY);
+  const cx = W / 2, cy = S.plan ? H / 2 : H / 2 + spanY * sc / 2;
+  const X = x => cx + x * sc, Y = y => cy - y * sc;
+  const vmax = Math.max(1e-9, ...S.mems.flatMap(o => o.v.map(Math.abs)));
+  const k = 54 / vmax, col = `var(--${kind === 'M' ? 'accent' : 'warn'})`, P2 = a => a[0].toFixed(1) + ',' + a[1].toFixed(1);
+  let axes = '', paths = '', labels = '';
+  const used = [];
+  S.mems.forEach(o => {
+    const ax = o.P.map(q => [X(q[0]), Y(q[1])]);
+    const off = ax.map((a, i) => [a[0] + o.n[0] * o.v[i] * k, a[1] - o.n[1] * o.v[i] * k]);
+    axes += `<polyline points="${ax.map(P2).join(' ')}" fill="none" style="stroke:var(--ink);stroke-width:1.6"/>`;
+    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" style="fill:${col};fill-opacity:.16;stroke:none"/><polyline points="${off.map(P2).join(' ')}" fill="none" style="stroke:${col};stroke-width:1.5;stroke-linejoin:round"/>`;
+    if (!o.lab) return;
+    const along = o.fAxis != null ? o.fAxis : 0, pickI = [];
+    (o.faces || []).forEach(f => { const i = o.P.findIndex(q => Math.abs(q[along] - f) < 1e-6); if (i >= 0) pickI.push(i); });
+    let ip = 0, ineg = 0; o.v.forEach((v, i) => { if (v > o.v[ip]) ip = i; if (v < o.v[ineg]) ineg = i; });
+    [ip, ineg].forEach(im => { if (!pickI.some(i => Math.abs(i - im) < 3)) pickI.push(im); });
+    pickI.forEach(i => {
+      const v = o.v[i]; if (Math.abs(v) < vmax * 0.02) return;
+      const sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = -o.n[1] * sg, hor = Math.abs(dx) > 0;
+      let x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
+      while (used.some(u => Math.abs(u[0] - x) < 36 && Math.abs(u[1] - y) < 12)) y += (dy >= 0 ? 13 : -13);
+      used.push([x, y]);
+      labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${hor ? (dx > 0 ? 'start' : 'end') : 'middle'}" font-size="12" font-family="var(--f-mono)" style="fill:var(--ink)">${fmt(v, 1)}</text>`;
+    });
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de ${kind === 'M' ? 'momentos fletores' : 'esforços cortantes'}">${paths}${axes}${labels}
+    <text x="${W / 2}" y="${H - 8}" text-anchor="middle" font-size="12" style="fill:var(--muted)">${S.axes[0]}</text>
+    <text transform="translate(16 ${H / 2}) rotate(-90)" text-anchor="middle" font-size="12" style="fill:var(--muted)">${S.axes[1]}</text></svg>`;
+}
+
+/* ----- tabela de esforços de dimensionamento (envoltórias) ----- */
+function envTableHtml(A) {
+  let h = `<table><thead><tr><th class="l">Armadura</th><th class="l">Face tracionada</th><th>M<sub>d</sub></th><th>N<sub>d</sub></th><th>M<sub>d,máx</sub></th><th>M<sub>ser</sub></th><th>V<sub>Sd</sub></th></tr>
+    <tr class="units"><th></th><th></th><th>kN·m/m</th><th>kN/m</th><th>kN·m/m</th><th>kN·m/m</th><th>kN/m</th></tr></thead><tbody>`;
   A.groups.forEach(g => {
-    h += `<tr class="grp"><td colspan="11">${g.name} · h = ${fmt(g.h * 100, 0)} cm</td></tr>`;
+    h += `<tr class="grp"><td colspan="7">${g.name} · h = ${fmt(g.h * 100, 0)} cm</td></tr>`;
     A.rows.filter(r => r.group === g.key).forEach((r, i) => {
-      const s = sel[r.key], c = chk[r.key];
-      let st;
-      if (!r.flex.ok) st = '<span class="pill bad">x/d acima do limite</span>';
-      else if (!c.okAs) st = `<span class="pill bad">Faltam ${fmt(r.AsReq - c.As, 2)} cm²/m</span>`;
-      else if (!c.okW) st = '<span class="pill bad">w<sub>k</sub> acima do limite</span>';
-      else st = '<span class="pill ok">✓ Atende</span>';
+      const sh = A.shear.find(v => r.key.startsWith(v.key + '-'));
+      h += `<tr${i % 2 ? ' class="pair"' : ''}>${i % 2 === 0 ? `<td class="l" rowspan="2">${r.dir}</td>` : ''}<td class="l">${r.face}</td><td class="num">${fmt(r.Md, 2)}</td><td class="num">${r.Nd > 0.005 ? '+' + fmt(r.Nd, 1) : fmt(r.Nd, 1)}</td><td class="num">${fmt(r.Mmax, 2)}</td><td class="num">${fmt(r.Ms, 2)}</td>${i % 2 === 0 ? `<td class="num" rowspan="2">${fmt(sh ? sh.Vd : 0, 1)}</td>` : ''}</tr>`;
+    });
+  });
+  return h + '</tbody></table>';
+}
+
+/* ----- Armaduras ----- */
+function armVerdictsHtml(res) {
+  return card('Flexão', 'ELU, envoltória (Wood-Armer)', res.nFlex === res.n ? 'ok' : 'bad', `${res.nFlex}/${res.n}`, 'faces com A<sub>s,ef</sub> ≥ A<sub>s,nec</sub><br>e x/d no limite') +
+    card('Fissuração', 'ELS, combinação frequente', res.wMax <= res.wlim + 1e-9 ? 'ok' : 'bad', fmt(res.wMax, 2), `w<sub>k,máx</sub> (mm)<br>limite ${fmt(res.wlim, 2)} mm`) +
+    card('Cortante', 'sem estribos, V<sub>Rd1</sub>', res.vMax <= 1 + 1e-9 ? 'ok' : 'bad', fmt(res.vMax, 2), 'maior V<sub>Sd</sub> ÷ V<sub>Rd1</sub><br>critério ≤ 1,00') +
+    card('Detalhamento', 'ø, espaçamento, A<sub>s,máx</sub>', res.nDet === res.n ? 'ok' : 'bad', `${res.nDet}/${res.n}`, 'faces com ø ≤ h/8, s ≤ s<sub>máx</sub><br>e A<sub>s</sub> ≤ 4 % A<sub>c</sub>');
+}
+
+function armTableHtml(A, sel, chk, asMaxOk) {
+  const opt = (vals, cur, f) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${f(v)}</option>`).join('');
+  let h = `<table class="armt"><thead><tr><th class="l">Armadura</th><th class="l">Face tracionada</th><th>M<sub>d</sub></th><th>N<sub>d</sub></th><th>M<sub>ser</sub></th><th>A<sub>s,calc</sub></th><th>A<sub>s,mín</sub></th><th>A<sub>s,nec</sub></th><th>Barras adotadas</th><th>A<sub>s,ef</sub></th><th>w<sub>k</sub></th><th class="l">Verificações NBR 6118</th></tr>
+    <tr class="units"><th></th><th></th><th>kN·m/m</th><th>kN/m</th><th>kN·m/m</th><th>cm²/m</th><th>cm²/m</th><th>cm²/m</th><th></th><th>cm²/m</th><th>mm</th><th></th></tr></thead><tbody>`;
+  A.groups.forEach(g => {
+    h += `<tr class="grp"><td colspan="12">${g.name} · h = ${fmt(g.h * 100, 0)} cm · s<sub>máx</sub> = ${fmt(Arm.sMax(g.h * 100), 0)} cm · ø<sub>máx</sub> = ${fmt(g.h * 1000 / 8, 0)} mm</td></tr>`;
+    A.rows.filter(r => r.group === g.key).forEach((r, i) => {
+      const s = sel[r.key], c = chk[r.key], bad = [];
+      if (!r.flex.ok) bad.push('x/d acima do limite');
+      if (!c.okAs) bad.push(`faltam ${fmt(r.AsReq - c.As, 2)} cm²/m`);
+      if (!c.okW) bad.push('w<sub>k</sub> > w<sub>k,lim</sub>');
+      if (!c.okPhi) bad.push('ø > h/8');
+      if (!c.okS) bad.push('s > s<sub>máx</sub>');
+      if (!asMaxOk[r.key]) bad.push('A<sub>s</sub> > 4 % A<sub>c</sub>');
+      const st = bad.length ? bad.map(b => `<span class="pill bad">${b}</span>`).join(' ') : '<span class="pill ok">✓ Atende</span>';
+      const mode = r.flex.mode && r.flex.mode !== 'flex' ? `<span class="gmin">${r.flex.mode}</span>` : '';
       h += `<tr${i % 2 ? ' class="pair"' : ''}>${i % 2 === 0 ? `<td class="l" rowspan="2">${r.dir}</td>` : ''}<td class="l">${r.face}</td>
-        <td class="num">${fmt(r.Md, 2)}</td><td class="num">${fmt(r.Ms, 2)}</td><td class="num">${Number.isFinite(r.AsCalc) ? fmt(r.AsCalc, 2) : '—'}</td><td class="num">${fmt(r.AsMin, 2)}</td>
+        <td class="num">${fmt(r.Md, 2)}</td><td class="num">${r.Nd > 0.005 ? '+' + fmt(r.Nd, 1) : fmt(r.Nd, 1)}</td><td class="num">${fmt(r.Ms, 2)}</td><td class="num">${Number.isFinite(r.AsCalc) ? fmt(r.AsCalc, 2) : '—'}${mode}</td><td class="num">${fmt(r.AsMin, 2)}</td>
         <td class="num"><b>${Number.isFinite(r.AsReq) ? fmt(r.AsReq, 2) : '—'}</b>${r.govMin ? '<span class="gmin">mín.</span>' : ''}</td>
         <td><div class="barsel"><span>ø</span><select data-k="${r.key}" data-f="phi" aria-label="Bitola, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.BARS, s.phi, fb)}</select><span>c/</span><select data-k="${r.key}" data-f="s" aria-label="Espaçamento em cm, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.SPAC, s.s, fsp)}</select>${s.manual ? '<span class="tagman">manual</span>' : ''}</div></td>
         <td class="num">${fmt(c.As, 2)}</td><td class="num">${fmt(c.c.wk, 3)}</td><td class="l">${st}</td></tr>`;
@@ -1581,142 +2077,6 @@ function armShearHtml(A, chk, p) {
   });
   return { html: h + '</tbody></table>', vMax: Math.max(...out) };
 }
-
-function armLoadsHtml(m, A) {
-  const p = m.p;
-  const r = (a, b, c, d) => `<tr><td class="l">${a}</td><td class="l num">${b}</td><td class="num">${c}</td><td class="num">${d}</td></tr>`;
-  const g = t => `<tr class="grp"><td colspan="4">${t}</td></tr>`;
-  const kTxt = A.k0 ? `K<sub>0</sub> = 1 − sen ${fmt(p.phi, 1)}°` : `K<sub>a</sub> = tg²(45° − ${fmt(p.phi, 1)}°/2)${p.c > 0 ? ', parcela −2c√K<sub>a</sub>' : ''}`;
-  const dRow = (lab, d) => r(lab, `z = ${fz(-d)} m: K·σ′<sub>v</sub> = ${fmt(A.sh(d), 2)}; u = ${fmt(A.uw(d), 2)}`, fmt(A.pg(d), 2), fmt(A.pqL, 2));
-  const fB = A.frames.B, fL = A.frames.L;
-  let h = `<table><thead><tr><th class="l">Ação</th><th class="l">Composição</th><th>Permanente g</th><th>Variável q</th></tr></thead><tbody>`;
-  h += g('Vãos de cálculo (eixos dos elementos, m)');
-  h += r('Direção B · direção L', `B + e<sub>p</sub> · L + e<sub>p</sub>`, fmt(A.Bc), fmt(A.Lc));
-  h += r('Altura das paredes H<sub>c</sub>', `H + (e<sub>s</sub> + e<sub>i</sub>)/2`, fmt(A.Hc), '');
-  h += g('Laje de topo (kN/m²)');
-  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>s</sub> = ${fmt(p.gc, 1)} × ${fmt(p.es)}`, fmt(A.qtSelf, 2), '—');
-  h += r('Solo sobre a laje', A.cover > 0 ? `σ<sub>v</sub> total, cobertura de ${fmt(A.cover)} m` : 'sem cobertura', fmt(A.qtSoil, 2), '—');
-  h += r('Sobrecarga no terreno', 'q', '—', fmt(p.q, 2));
-  h += `<tr class="total"><td class="l">Total</td><td></td><td class="num">${fmt(A.qtg, 2)}</td><td class="num">${fmt(p.q, 2)}</td></tr>`;
-  h += g('Paredes (kN/m, ao longo da altura)');
-  h += r('Peso próprio', `γ<sub>c</sub> · e<sub>p</sub> = ${fmt(p.gc, 1)} × ${fmt(p.ep)}`, fmt(A.wallW, 2), '—');
-  h += g('Laje de fundo e aba (kN/m²)');
-  h += r('Peso próprio (para baixo)', `γ<sub>c</sub> · e<sub>i</sub> = ${fmt(p.gc, 1)} × ${fmt(p.ei)}`, fmt(A.qbSelf, 2), '—');
-  h += r('Subpressão (para cima, em toda a laje)', `u na cota ${fz(m.z.base)} m`, fmt(A.uBase, 2), '—');
-  if (p.ba > 0) h += r('Solo sobre a aba (para baixo)', A.dAba > 0 ? `σ<sub>v</sub> total na cota ${fz(m.z.botTop)} m` : 'sem cobertura', fmt(A.qAbaSoil, 2), fmt(p.q, 2));
-  h += r('Reação do terreno', `molas de Winkler, k<sub>v</sub> = ${fmt(p.kv, 0)} kN/m³, só compressão`, 'calculada', '');
-  h += g('Pressão de contato e recalque (combinação característica g + q, sem majorar)');
-  h += r('Direção B', `p<sub>máx</sub> · recalque máx.`, `${fmt(fB.pMax, 1)} kPa`, `${fmt(fB.wMax, 2)} mm`);
-  h += r('Direção L', `p<sub>máx</sub> · recalque máx.`, `${fmt(fL.pMax, 1)} kPa`, `${fmt(fL.wMax, 2)} mm`);
-  h += g(`Paredes: pressão lateral (kPa), ${kTxt} = ${fmt(A.K, 3)}`);
-  h += dRow('Eixo da laje de topo', A.dA);
-  if (A.dw > A.dA && A.dw < A.dB) h += dRow('Nível d\'água', A.dw);
-  h += dRow('Face superior da laje de fundo (anel)', A.ring.d);
-  h += dRow('Eixo da laje de fundo', A.dB);
-  if (p.split) {
-    h += g('Repartição das cargas entre as direções (k = l⁴ da outra direção ÷ soma dos l⁴)');
-    h += r('Lajes e cargas verticais', 'faixa paralela a B · paralela a L', fmt(A.ksB, 3), fmt(A.ksL, 3));
-    h += r('Paredes longas', 'vertical · horizontal', fmt(A.kvLong, 3), fmt(A.khLong, 3));
-    h += r('Paredes curtas', 'vertical · horizontal', fmt(A.kvShort, 3), fmt(A.khShort, 3));
-  }
-  return h + '</tbody></table>';
-}
-
-// Diagramas de esforços de cálculo (todas as ações majoradas). kind: 'M' (momento) ou 'V' (cortante).
-// Coordenadas em metros, y para cima. Cada membro: pontos, valores e normal do lado "positivo".
-function armFigure(A, view, kind) {
-  const ring = view === 'ring';
-  let mems = [], spanX, spanY, names;
-  if (!ring) {
-    const f = A.frames[view], d = f.draw, g = f.geo;
-    const mk = (key, n, regs) => {
-      const v = d[key];
-      return { pts: v.pts, val: kind === 'M' ? v.M : v.V, n, lab: regs };
-    };
-    const R = d.reg;
-    const half = [
-      mk('top', [0, -1], [R.top]),
-      mk('wall', [-1, 0], [R.wall]),
-      mk('bottom', [0, 1], A.frames[view].aba ? [R.bot, R.aba] : [R.bot])
-    ];
-    half.forEach(h => {
-      mems.push(h);
-      mems.push({ pts: h.pts.map(q => [-q[0], q[1]]), val: kind === 'M' ? h.val : h.val.map(v => -v), n: [-h.n[0], h.n[1]], lab: null });
-    });
-    spanX = 2 * g.xtip; spanY = f.Hc;
-    names = [['laje de topo', 0, f.Hc, 'up'], ['laje de fundo', 0, 0, 'down'], [view === 'B' ? 'parede longa' : 'parede curta', -g.xw, f.Hc / 2, 'left']];
-  } else {
-    const r = A.ring, Lh = r.Lc / 2, Bh = r.Bc / 2;
-    const mkE = (e, from, to, n, lab) => {
-      const pts = e.xs.map(t => { const k = t / e.xs[e.xs.length - 1]; return [from[0] + (to[0] - from[0]) * k, from[1] + (to[1] - from[1]) * k]; });
-      return { pts, val: kind === 'M' ? e.Mall : e.Vall, n, lab: lab ? [{ ids: range(e.i0, e.i1), faces: [e.i0, e.i1] }] : null };
-    };
-    mems = [
-      mkE(r.long, [-Lh, Bh], [Lh, Bh], [0, -1], true),
-      mkE(r.long, [-Lh, -Bh], [Lh, -Bh], [0, 1], false),
-      mkE(r.short, [Lh, Bh], [Lh, -Bh], [-1, 0], true),
-      mkE(r.short, [-Lh, Bh], [-Lh, -Bh], [1, 0], false)
-    ];
-    spanX = r.Lc; spanY = r.Bc;
-    names = [['parede longa', 0, Bh, 'up'], ['parede curta', -Lh, 0, 'left']];
-  }
-  const W = 700, H = ring ? 430 : 490, mx = 120, my = 92;
-  const sc = Math.min((W - 2 * mx) / spanX, (H - 2 * my) / spanY);
-  const cx = W / 2, cy = H / 2 - 6 + (ring ? 0 : spanY * sc / 2);
-  const X = x => cx + x * sc, Yp = y => (ring ? H / 2 - 6 - y * sc : cy - y * sc);
-  const Vmax = Math.max(1e-9, ...mems.flatMap(o => o.val.map(Math.abs)));
-  const k = (kind === 'M' ? 54 : 46) / Vmax;
-  const P2 = a => a[0].toFixed(1) + ',' + a[1].toFixed(1);
-  let axes = '', paths = '', labels = '';
-  const used = [];
-  mems.forEach(o => {
-    const ax = o.pts.map(q => [X(q[0]), Yp(q[1])]);
-    const off = ax.map((a, i) => [a[0] + o.n[0] * o.val[i] * k, a[1] - o.n[1] * o.val[i] * k]);
-    axes += `<polyline points="${ax.map(P2).join(' ')}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`;
-    const col = `var(--${kind === 'M' ? 'accent' : 'warn'})`;
-    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" fill="${col}" fill-opacity=".16" stroke="none"/>`;
-    paths += `<polyline points="${off.map(P2).join(' ')}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>`;
-    if (Math.abs(o.val[0]) > 1e-9 && !(o.pts[0][0] === 0 && o.n[0] === 0)) paths += `<line x1="${ax[0][0].toFixed(1)}" y1="${ax[0][1].toFixed(1)}" x2="${off[0][0].toFixed(1)}" y2="${off[0][1].toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`;
-    const e1 = ax.length - 1;
-    if (Math.abs(o.val[e1]) > 1e-9 && !(Math.abs(o.pts[e1][0]) < 1e-9 && o.n[0] === 0)) paths += `<line x1="${ax[e1][0].toFixed(1)}" y1="${ax[e1][1].toFixed(1)}" x2="${off[e1][0].toFixed(1)}" y2="${off[e1][1].toFixed(1)}" stroke="${col}" stroke-width="1.2"/>`;
-    if (!o.lab) return;
-    o.lab.forEach(rg => {
-      const pick = rg.faces.slice();
-      if (kind === 'M') {
-        let im = rg.ids[0];
-        rg.ids.forEach(i => { if (o.val[i] > o.val[im]) im = i; });
-        if (o.val[im] > 0 && !pick.some(i => Math.abs(i - im) < 3)) pick.push(im);
-      }
-      pick.forEach(i => {
-        const v = o.val[i]; if (Math.abs(v) < Vmax * 0.02) return;
-        const sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = -o.n[1] * sg;
-        const hor = Math.abs(dx) > 0;
-        let x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
-        if (used.some(u => Math.abs(u[0] - x) < 34 && Math.abs(u[1] - y) < 12)) y += (dy >= 0 ? 13 : -13);
-        used.push([x, y]);
-        const anc = hor ? (dx > 0 ? 'start' : 'end') : 'middle';
-        labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anc}" font-size="12" font-family="var(--f-mono)" fill="var(--ink)">${fmt(Math.abs(v), 1)}</text>`;
-      });
-    });
-  });
-  const nm = names.map(([t, x, y, pos]) => {
-    const px = X(x), py = Yp(y);
-    const [tx, ty] = pos === 'up' ? [px, py - 70] : pos === 'down' ? [px, py + 78] : [px - 76, py];
-    return `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="11.5" fill="var(--muted)" letter-spacing=".06em">${t.toUpperCase()}</text>`;
-  }).join('');
-  const sub = s => `<tspan dy="3" font-size="9">${s}</tspan><tspan dy="-3">`;
-  const dimX = ring ? `L${sub('c')} = ${fmt(spanX)} m (paredes longas)</tspan>` : `${view}${sub('c')} = ${fmt(A.frames[view].S)} m entre eixos · laje de fundo com aba ${fmt(spanX)} m</tspan>`;
-  const dimY = ring ? `B${sub('c')} = ${fmt(spanY)} m (paredes curtas)</tspan>` : `H${sub('c')} = ${fmt(spanY)} m</tspan>`;
-  const what = kind === 'M' ? 'momentos fletores' : 'esforços cortantes';
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Diagrama de ${what} de cálculo, ${ring ? 'anel horizontal das paredes' : 'pórtico na direção ' + view}">
-    ${paths}${axes}${labels}
-    <text x="${cx}" y="${(ring ? H / 2 - 6 : cy - spanY * sc / 2) + 4}" text-anchor="middle" font-size="12" fill="var(--muted)">interior</text>
-    ${nm}
-    <text x="${W / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--muted)">${dimX}</text>
-    <text transform="translate(16 ${(ring ? H / 2 - 6 : cy - spanY * sc / 2).toFixed(1)}) rotate(-90)" text-anchor="middle" font-size="12" fill="var(--muted)">${dimY}</text>
-  </svg>`;
-}
-function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
 
 /* ---------- Aba Esforços: diagramas das ações (valores característicos) ---------- */
 const ESF = [
@@ -1754,7 +2114,7 @@ function esfData(m, A, key, dir) {
     const txt = {
       solo: `Empuxo efetivo do solo σ′<sub>h</sub> = K · σ′<sub>v</sub>, com ${kTxt}. Abaixo do nível d'água usa-se o peso submerso γ′ = γ<sub>sat</sub> − γ<sub>w</sub>. Entra na ação permanente “empuxo e água” (γ = 1,0 ou γ<sub>g</sub>).`,
       agua: `Pressão hidrostática u = γ<sub>w</sub> · (profundidade abaixo do N.A.), sem coeficiente K. Com o N.A. em ${fz(p.zw)} m${dw >= dB ? ', abaixo da laje de fundo, não há pressão de água nas paredes' : ''}. Entra na mesma ação permanente do empuxo.`,
-      lat: `Soma do empuxo efetivo com a pressão da água: é a pressão aplicada nas paredes do pórtico, entre os eixos das lajes (H<sub>c</sub> = ${fmt(A.Hc)} m). O anel horizontal usa o valor na face superior da laje de fundo.`
+      lat: `Soma do empuxo efetivo com a pressão da água: é a pressão aplicada nas paredes do modelo, entre os eixos das lajes (H<sub>c</sub> = ${fmt(A.Hc)} m). A pressão sobre as meias espessuras das lajes, até as faces externas, entra como carga de linha nas bordas.`
     }[key] + splitNote;
     return { unit: 'kPa', rows: depthPts(fn), sums: [R('Resultante em cada parede', fmt(res, 2), 'kN/m'), R('Ponto de aplicação abaixo do eixo da laje de topo', fmt(res > 0 ? integ(d => fn(d) * (d - dA), dA, dB) / res : 0, 2), 'm')], txt, fn };
   }
@@ -1779,18 +2139,16 @@ function esfData(m, A, key, dir) {
         ['Paredes: peso próprio (kN/m de altura)', `e<sub>p</sub> = ${fmt(p.ep)} m`, A.wallW], ['Laje de fundo: peso próprio', `e<sub>i</sub> = ${fmt(p.ei)} m`, A.qbSelf],
         ...(p.ba > 0 ? [['Aba: solo sobre ela', A.dAba > 0 ? `${fmt(A.dAba)} m de solo` : 'sem cobertura', A.qAbaSoil]] : [])],
       sums: [R('Laje de topo', fmt(A.qtg * Sext, 2), 'kN/m'), R('Duas paredes', fmt(2 * A.wallW * A.Hc, 2), 'kN/m'), R('Laje de fundo com aba', fmt(A.qbSelf * Sinf, 2), 'kN/m'), ...(p.ba > 0 ? [R('Solo sobre as abas', fmt(A.qAbaSoil * 2 * p.ba, 2), 'kN/m')] : [])],
-      txt: `Cargas permanentes verticais: peso próprio (γ<sub>c</sub> = ${fmt(p.gc, 1)} kN/m³) e solo com a tensão vertical total (seco acima do N.A., saturado abaixo). Na laje de topo, a faixa sobre as paredes vai direto ao canto do pórtico.` + splitNote
+      txt: `Cargas permanentes verticais: peso próprio (γ<sub>c</sub> = ${fmt(p.gc, 1)} kN/m³) e solo com a tensão vertical total (seco acima do N.A., saturado abaixo). Na laje de topo, a faixa sobre as paredes (meia espessura além do eixo) entra como carga de linha no topo das paredes. Com chaminé, o peso dela substitui o solo na faixa em volta da abertura.` + splitNote
     };
   }
-  // reação
+  // reação (elementos finitos, faixa central)
   const c = f.contact, pAt = x => { let best = c[0]; c.forEach(q => { if (Math.abs(q.x - x) < Math.abs(best.x - x)) best = q; }); return best.p; };
-  const g = f.geo;
-  const R0 = c.reduce((s, q) => s + q.p * q.L, 0) * 2;
-  const load = (A.qtg + p.q) * Sext * ks + 2 * A.wallW * A.Hc * ks + A.qbSelf * Sinf * ks + (A.qAbaSoil + p.q) * 2 * p.ba * ks - A.uBase * Sinf * ks;
+  const g = f.geo, ax = dir === 'B' ? 'x' : 'y';
   return {
-    unit: 'kPa', rows: [['Centro da laje de fundo', 'x = 0', pAt(0)], ['Face interna da parede', `x = ${fmt(g.xin)} m`, pAt(g.xin)], ['Eixo da parede', `x = ${fmt(g.xw)} m`, pAt(g.xw)], ...(p.ba > 0 ? [['Ponta da aba', `x = ${fmt(g.xtip)} m`, pAt(g.xtip - 0.01)]] : []), ['Máxima', '', f.pMax]],
-    sums: [R('Soma das reações das molas', fmt(R0, 2), 'kN/m'), R('Soma das cargas verticais (g + q − subpressão)', fmt(load, 2), 'kN/m'), R('Recalque máximo', fmt(f.wMax, 2), 'mm')],
-    txt: `Reação p = k<sub>v</sub> · w das molas de Winkler (k<sub>v</sub> = ${fmt(p.kv, 0)} kN/m³) na combinação característica g + q, sem majorar. A pressão se concentra sob as paredes e alivia no meio do vão; molas tracionadas são desligadas${f.upliftC ? ' (há trecho sem contato nesta combinação)' : ''}. A soma das reações confere o equilíbrio vertical.`,
+    unit: 'kPa', rows: [['Centro da laje de fundo', `${ax} = 0`, pAt(0)], ['Face interna da parede', `${ax} = ${fmt(g.xin)} m`, pAt(g.xin)], ['Eixo da parede', `${ax} = ${fmt(g.xw)} m`, pAt(g.xw)], ...(p.ba > 0 ? [['Ponta da aba', `${ax} = ${fmt(g.xtip)} m`, pAt(g.xtip)]] : []), ['Máxima em toda a laje', '', f.pMax]],
+    sums: [R('Soma das reações das molas (caixa inteira)', fmt(f.Rtot, 2), 'kN'), R('Carga vertical total (g + q − subpressão)', fmt(f.Ftot, 2), 'kN'), R('Recalque máximo', fmt(f.wMax, 2), 'mm')],
+    txt: `Pressão de contato p = k<sub>v</sub> · w das molas de Winkler (k<sub>v</sub> = ${fmt(p.kv, 0)} kN/m³), resultado do modelo de elementos finitos na combinação característica g + q, sem majorar, ao longo da faixa central (${dir === 'B' ? 'y = 0' : 'x = 0'}). Molas tracionadas são desligadas${f.upliftC ? ' (há trecho sem contato nesta combinação)' : ''}. A soma das reações confere o equilíbrio vertical da caixa inteira.`,
     contact: c
   };
 }
@@ -1900,7 +2258,7 @@ function esfFigure(m, A, key, dir) {
     const c = D.contact, mx = Math.max(1e-9, ...c.map(q => q.p)), kk = 70 / mx, yb = Y(z.base);
     const full = c.map(q => [q.x, q.p]).concat(c.map(q => [-q.x, q.p])).sort((a, b) => a[0] - b[0]);
     o.push(`<polygon points="${f1(X(full[0][0]))},${f1(yb)} ${full.map(([x, v]) => `${f1(X(x))},${f1(yb + v * kk)}`).join(' ')} ${f1(X(full[full.length - 1][0]))},${f1(yb)}" style="fill:var(--accent);fill-opacity:.22;stroke:var(--accent);stroke-width:1.4"/>`);
-    const n = 12;
+    const n = 14;
     for (let i = 0; i <= n; i++) {
       const x = -Sinf / 2 + Sinf * i / n, v = full.reduce((b, q) => Math.abs(q[0] - x) < Math.abs(b[0] - x) ? q : b, full[0])[1];
       if (v * kk > 8) o.push(arrow(X(x), yb + v * kk, X(x), yb + 1, 'accent'));
@@ -1928,7 +2286,7 @@ function esfTableHtml(D) {
 
 /* ---------- Interface ---------- */
 if (typeof document !== 'undefined') {
-  const KEY = 'flutuacao-em-caixas-v2';
+  const KEY = 'flutuacao-em-caixas-v3';
   const state = Object.assign({}, DEFAULTS);
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) Object.keys(DEFAULTS).forEach(k => { if (k in s && (typeof s[k] === typeof DEFAULTS[k] || (DEFAULTS[k] === null && (s[k] === null || typeof s[k] === 'number')))) state[k] = s[k]; }); } catch (e) {}
   let stage = 'oper';
@@ -2006,9 +2364,9 @@ if (typeof document !== 'undefined') {
     } catch (e) { msg.textContent = 'Não foi possível gerar o memorial neste navegador.'; }
     btn.disabled = false; btn.textContent = lab;
   });
-  // Aba Armaduras
-  const OVKEY = 'flutuacao-em-caixas-v2-arm-ov', TABKEY = 'flutuacao-em-caixas-v2-tab';
-  let armOv = {}, armView = 'B', armKind = 'M';
+  // Abas
+  const OVKEY = 'flutuacao-em-caixas-v3-arm-ov', TABKEY = 'flutuacao-em-caixas-v3-tab', VIEWKEY = 'flutuacao-em-caixas-v3-view';
+  let armOv = {};
   try { const o = JSON.parse(localStorage.getItem(OVKEY) || 'null'); if (o && typeof o === 'object') armOv = o; } catch (e) {}
   const saveOv = () => { try { localStorage.setItem(OVKEY, JSON.stringify(armOv)); } catch (e) {} };
   function syncChecks() { LAYOUT.forEach(g => { if (g.check) el(g.check.key).checked = !!state[g.check.key]; }); }
@@ -2021,109 +2379,162 @@ if (typeof document !== 'undefined') {
   }
   TABS.forEach(x => el('tb-' + x).addEventListener('click', () => setTab(x)));
   el('go-flut').addEventListener('click', () => { setTab('flut'); window.scrollTo(0, 0); });
+  el('go-esf').addEventListener('click', () => { setTab('esf'); window.scrollTo(0, 0); });
   TABS.forEach((x, i) => el('tb-' + x).addEventListener('keydown', e => {
     const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (d) { const o = 'tb-' + TABS[(i + d + TABS.length) % TABS.length]; el(o).focus(); el(o).click(); }
   }));
   try { const t = localStorage.getItem(TABKEY); if (TABS.includes(t)) setTab(t); } catch (e) {}
 
-  // Aba Esforços: navegação entre diagramas
-  const ESFKEY = 'flutuacao-em-caixas-v2-esf';
-  let esfIdx = 0, esfDir = 'B';
-  try { const o = JSON.parse(localStorage.getItem(ESFKEY) || 'null'); if (o) { if (o.i >= 0 && o.i < ESF.length) esfIdx = o.i; if (o.d === 'L') esfDir = 'L'; } } catch (e) {}
+  // Preferências de visualização (carregamento, mapas, diagramas)
+  const view = { esf: 0, dir: 'B', ms: 'bot', mc: 'M2', mk: 15, sk: 'M', sv: 'B' };
+  try { const o = JSON.parse(localStorage.getItem(VIEWKEY) || 'null'); if (o) Object.keys(view).forEach(k => { if (k in o && typeof o[k] === typeof view[k]) view[k] = o[k]; }); } catch (e) {}
+  if (!(view.esf >= 0 && view.esf < ESF.length)) view.esf = 0;
+  const saveView = () => { try { localStorage.setItem(VIEWKEY, JSON.stringify(view)); } catch (e) {} };
+  const setPressed = (ids, cur) => ids.forEach(([id, v]) => el(id).setAttribute('aria-pressed', String(v === cur)));
+  const redraw = () => { saveView(); if (lastM) drawFE(lastM); };
+
+  // Carregamentos: navegação
   el('esf-nav').innerHTML = ESF.map((d, i) => `<button type="button" data-i="${i}"><span class="k">${i + 1}</span><span class="t">${d.name}</span><span class="s">${d.tag}</span></button>`).join('');
-  const setEsf = i => { esfIdx = (i + ESF.length) % ESF.length; try { localStorage.setItem(ESFKEY, JSON.stringify({ i: esfIdx, d: esfDir })); } catch (e) {} render(); };
+  const setEsf = i => { view.esf = (i + ESF.length) % ESF.length; redraw(); };
   el('esf-nav').addEventListener('click', e => { const b = e.target.closest('button[data-i]'); if (b) setEsf(+b.dataset.i); });
-  el('esf-prev').addEventListener('click', () => setEsf(esfIdx - 1));
-  el('esf-next').addEventListener('click', () => setEsf(esfIdx + 1));
-  ['B', 'L'].forEach(v => el('ed-' + v).addEventListener('click', () => { esfDir = v; ['B', 'L'].forEach(w => el('ed-' + w).setAttribute('aria-pressed', String(w === v))); setEsf(esfIdx); }));
-  ['B', 'L'].forEach(w => el('ed-' + w).setAttribute('aria-pressed', String(w === esfDir)));
+  el('esf-prev').addEventListener('click', () => setEsf(view.esf - 1));
+  el('esf-next').addEventListener('click', () => setEsf(view.esf + 1));
+  ['B', 'L'].forEach(v => el('ed-' + v).addEventListener('click', () => { view.dir = v; redraw(); }));
   document.addEventListener('keydown', e => {
     if (curTab !== 'esf' || e.altKey || e.ctrlKey || e.metaKey) return;
     const tg = e.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'SELECT' || tg.tagName === 'TEXTAREA' || tg.getAttribute('role') === 'tab')) return;
-    if (e.key === 'ArrowRight') { e.preventDefault(); setEsf(esfIdx + 1); }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); setEsf(esfIdx - 1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setEsf(view.esf + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); setEsf(view.esf - 1); }
   });
-  function renderEsf(m, A) {
-    [...el('esf-nav').children].forEach((b, i) => b.setAttribute('aria-current', String(i === esfIdx)));
-    const d = ESF[esfIdx];
-    el('esf-title').innerHTML = `<span class="n">${esfIdx + 1}</span>${d.name}`;
-    el('esf-cnt').textContent = `${esfIdx + 1} de ${ESF.length}`;
-    if (A.error) { el('esf-warns').innerHTML = `<p>${A.error}</p>`; ['esf-fig', 'esf-table', 'esf-txt'].forEach(id => { el(id).innerHTML = ''; }); return; }
-    const r = esfFigure(m, A, d.key, esfDir);
-    el('esf-warns').innerHTML = invalid.size ? '<p>Há campos inválidos. Os diagramas mostram os últimos valores válidos.</p>' : '';
-    el('esf-txt').innerHTML = r.D.txt;
-    el('esf-fig').innerHTML = r.svg;
-    el('esf-table').innerHTML = esfTableHtml(r.D);
-  }
-  ['B', 'L', 'ring'].forEach(v => el('av-' + v).addEventListener('click', () => {
-    armView = v;
-    ['B', 'L', 'ring'].forEach(w => el('av-' + w).setAttribute('aria-pressed', String(w === v)));
-    render();
-  }));
-  ['M', 'V'].forEach(v => el('ak-' + v).addEventListener('click', () => {
-    armKind = v;
-    ['M', 'V'].forEach(w => el('ak-' + w).setAttribute('aria-pressed', String(w === v)));
-    render();
-  }));
+  // Mapas e diagramas
+  el('map-s').innerHTML = Object.keys(MAP_SURF).map(s => `<option value="${s}">${MAP_SURF[s].name}</option>`).join('');
+  el('map-k').innerHTML = CASES.map(([i, n]) => `<option value="${i}">${n}</option>`).join('');
+  const fillComps = () => {
+    const cs = mapComps(view.ms); if (!cs.some(c => c[0] === view.mc)) view.mc = cs[0][0];
+    el('map-c').innerHTML = cs.map(([k, n]) => `<option value="${k}"${k === view.mc ? ' selected' : ''}>${n}</option>`).join('');
+  };
+  el('map-s').value = view.ms; el('map-k').value = String(view.mk); fillComps();
+  el('map-s').addEventListener('change', e => { view.ms = e.target.value; fillComps(); redraw(); });
+  el('map-c').addEventListener('change', e => { view.mc = e.target.value; redraw(); });
+  el('map-k').addEventListener('change', e => { view.mk = +e.target.value; redraw(); });
+  ['M', 'V'].forEach(v => el('sk-' + v).addEventListener('click', () => { view.sk = v; redraw(); }));
+  ['B', 'L', 'P'].forEach(v => el('sv-' + v).addEventListener('click', () => { view.sv = v; redraw(); }));
+
+  // Armaduras: escolha de barras
   el('arm-table').addEventListener('change', e => {
     const t = e.target; if (!t.dataset || !t.dataset.k) return;
     const k = t.dataset.k, row = t.closest('tr');
     const phi = parseFloat(row.querySelector('select[data-f="phi"]').value), s = parseFloat(row.querySelector('select[data-f="s"]').value);
-    armOv[k] = { phi, s }; saveOv(); render();
+    armOv[k] = { phi, s }; saveOv(); if (lastM) drawFE(lastM);
   });
-  el('arm-sug').addEventListener('click', () => { armOv = {}; saveOv(); render(); });
-  el('arm-reset').addEventListener('click', () => {
-    ARM_KEYS.forEach(k => { state[k] = DEFAULTS[k]; invalid.delete(k); });
-    FIELDS.filter(f => ARM_KEYS.includes(f.key)).forEach(f => {
+  el('arm-sug').addEventListener('click', () => { armOv = {}; saveOv(); if (lastM) drawFE(lastM); });
+  const resetKeys = keys => {
+    keys.forEach(k => { state[k] = DEFAULTS[k]; invalid.delete(k); });
+    FIELDS.filter(f => keys.includes(f.key)).forEach(f => {
       el('in-' + f.key).value = fmt(state[f.key], decOf(f));
       el('box-' + f.key).classList.remove('bad'); el('box-' + f.key).querySelector('.err').hidden = true;
     });
-    syncChecks(); armOv = {}; saveOv(); render();
-  });
+    syncChecks(); render();
+  };
+  el('arm-reset').addEventListener('click', () => { armOv = {}; saveOv(); resetKeys(ARM_KEYS); });
+  el('esf-reset').addEventListener('click', () => resetKeys(ESF_KEYS));
 
-  function renderArm(m) {
-    el('arm-stale').hidden = invalid.size === 0;
+  /* ----- Análise por elementos finitos (em segundo plano) ----- */
+  let worker = null, reqId = 0, feTimer = null, lastM = null;
+  const fe = { key: null, res: null, aux: null, busyKey: null, err: null };
+  const FE_SYNC = FEengine();
+  try {
+    const srcW = FEengine.toString() + '\nconst FE = FEengine();\nonmessage = e => { try { postMessage({ id: e.data.id, r: FE.analyze(e.data.inp) }); } catch (err) { postMessage({ id: e.data.id, error: String(err && err.message || err) }); } };';
+    worker = new Worker(URL.createObjectURL(new Blob([srcW], { type: 'text/javascript' })));
+    worker.onerror = () => { worker = null; fe.busyKey = null; if (lastM) renderFE(lastM); };
+  } catch (e) { worker = null; }
+  function setStatus(kind, text) {
+    ['fe-status', 'arm-status'].forEach(id => { const b = el(id); b.className = 'festatus' + (kind ? ' ' + kind : ''); b.querySelector('.t').innerHTML = text; });
+  }
+  function runFE(m) {
+    const { inp, aux } = Arm.feInput(m), key = JSON.stringify(inp);
+    if (key === fe.key || key === fe.busyKey) return;
+    fe.busyKey = key;
+    setStatus('busy', 'Calculando os esforços por elementos finitos…');
+    clearTimeout(feTimer);
+    feTimer = setTimeout(() => {
+      const id = ++reqId;
+      const done = r => {
+        if (id !== reqId) return;
+        fe.busyKey = null;
+        if (!r || r.error) { fe.err = (r && r.error) || 'Falha na análise.'; setStatus('err', 'A análise não convergiu: ' + fe.err); return; }
+        fe.key = key; fe.res = r; fe.aux = aux; fe.err = null;
+        if (lastM) drawFE(lastM);
+      };
+      if (worker) { worker.onmessage = e => { if (e.data.id === id) done(e.data.r || { error: e.data.error }); }; worker.postMessage({ id, inp }); }
+      else setTimeout(() => { let r; try { r = FE_SYNC.analyze(inp); } catch (err) { r = { error: String(err && err.message || err) }; } done(r); }, 30);
+    }, 350);
+  }
+  function renderFE(m) {
+    lastM = m;
+    const P = Arm.mat(m.p);
+    el('fe-mat').innerHTML = `E<sub>cs</sub> = ${fmt(P.Ecs / 1000, 1)} GPa (do f<sub>ck</sub> = ${fmt(m.p.fck, 0)} MPa, aba Armaduras) · ν = 0,2`;
+    el('esf-stale').hidden = invalid.size === 0; el('arm-stale').hidden = invalid.size === 0;
     el('arm-src').innerHTML = armSrcHtml(m);
-    const A = Arm.compute(m);
-    renderEsf(m, A);
-    if (A.error) {
-      el('arm-warns').innerHTML = `<p>${A.error}</p>`;
-      ['arm-verd', 'arm-fig', 'arm-table', 'arm-shear', 'arm-loads', 'arm-figcap'].forEach(id => { el(id).innerHTML = ''; });
-      return;
-    }
-    const p = m.p, sel = {}, chk = {};
-    A.rows.forEach(r => {
-      const o = armOv[r.key];
-      const s = (o && Arm.BARS.includes(o.phi) && Arm.SPAC.includes(o.s)) ? { phi: o.phi, s: o.s, manual: true } : { phi: r.sug.phi, s: r.sug.s, manual: false };
-      sel[r.key] = s; chk[r.key] = Arm.check(r, s.phi, s.s, p, A.P);
+    runFE(m);
+    drawFE(m);
+  }
+  function drawFE(m) {
+    setPressed([['ed-B', 'B'], ['ed-L', 'L']], view.dir);
+    setPressed([['sk-M', 'M'], ['sk-V', 'V']], view.sk);
+    setPressed([['sv-B', 'B'], ['sv-L', 'L'], ['sv-P', 'P']], view.sv);
+    [...el('esf-nav').children].forEach((b, i) => b.setAttribute('aria-current', String(i === view.esf)));
+    const d = ESF[view.esf];
+    el('esf-title').innerHTML = `<span class="n">D</span>Carregamentos · ${d.name}`;
+    el('esf-cnt').textContent = `${view.esf + 1} de ${ESF.length}`;
+    if (!fe.res) { if (!fe.busyKey) setStatus('err', fe.err || 'Sem resultado.'); return; }
+    const r = fe.res, p = m.p;
+    if (!fe.busyKey && !fe.err) setStatus('', `Esforços calculados: ${fmt(r.stats.nElem, 0)} elementos, ${fmt(r.stats.nEq, 0)} equações, ${fmt(r.stats.ms / 1000, 1)} s.`);
+    const A = Arm.post(m, r, fe.aux);
+    A.p = p; A.Hc = fe.aux.Hc;
+    // aba Esforços
+    const Aload = Object.assign({}, fe.aux, { frames: A.frames });
+    const w = [];
+    if (A.floated) w.push('Em alguma combinação ELU todas as molas ficaram tracionadas: a caixa flutua. Confira a aba Flutuação; os esforços dessa combinação não são confiáveis.');
+    else if (A.lifted > 0) w.push(`Em alguma combinação ELU parte da laje de fundo tende a subir: ${fmt(A.lifted, 0)} de ${fmt(A.nSpring, 0)} molas foram desligadas (o solo não resiste à tração).`);
+    if (p.hm < 7.5) w.push('Malha fina: o cálculo pode levar alguns segundos a cada alteração.');
+    el('esf-warns').innerHTML = w.map(t => `<p>${t}</p>`).join('');
+    el('fe-sum').innerHTML = feSummaryHtml(r, A);
+    const L = esfFigure(m, Aload, d.key, view.dir);
+    el('esf-txt').innerHTML = L.D.txt; el('esf-fig').innerHTML = L.svg; el('esf-table').innerHTML = esfTableHtml(L.D);
+    const mp = mapFigure(r, A, m, view.ms, view.mc, view.mk), cn = mapComps(view.ms).find(c => c[0] === view.mc);
+    el('map-fig').innerHTML = mp.svg;
+    el('map-cap').innerHTML = `${MAP_SURF[view.ms].name} · ${cn[1]} (${cn[2]}) · ${CASES.find(c => c[0] === view.mk)[1]}. Linhas tracejadas: faces dos apoios${view.ms === 'bot' ? ' e faces externas das paredes' : ''}. ${view.ms === 'top' || view.ms === 'bot' ? 'Vista em planta.' : 'Vista pelo lado de fora.'} Passe o mouse sobre um elemento para ver o valor.`;
+    el('strip-fig').innerHTML = stripFigure(r, A, view.sv, view.sk, view.mk);
+    el('strip-cap').innerHTML = (view.sv === 'P' ? 'Planta das paredes na meia altura livre (flexão horizontal). ' : `Corte pela faixa central na direção ${view.sv} (${view.sv === 'B' ? 'y = 0' : 'x = 0'}), pelos eixos dos elementos. `) +
+      (view.sk === 'M' ? 'Momentos fletores em kN·m/m, desenhados do lado tracionado; rótulos nas faces dos apoios e no máximo.' : 'Esforços cortantes em kN/m; rótulos nas faces dos apoios e no máximo.') + ` Caso: ${CASES.find(c => c[0] === view.mk)[1]} (o mesmo do mapa).`;
+    el('env-table').innerHTML = envTableHtml(A);
+
+    // aba Armaduras
+    const sel = {}, chk = {};
+    A.rows.forEach(rw => {
+      const o = armOv[rw.key];
+      const s = (o && Arm.BARS.includes(o.phi) && Arm.SPAC.includes(o.s)) ? { phi: o.phi, s: o.s, manual: true } : { phi: rw.sug.phi, s: rw.sug.s, manual: false };
+      sel[rw.key] = s; chk[rw.key] = Arm.check(rw, s.phi, s.s, p, A.P);
     });
+    const asMaxOk = {};
+    A.rows.forEach(rw => { const base = rw.key.replace(/-(int|ext)$/, ''), tot = chk[base + '-int'].As + chk[base + '-ext'].As; asMaxOk[rw.key] = tot <= 0.04 * 100 * rw.h + 1e-9; });
     const sh = armShearHtml(A, chk, p);
     const vals = Object.values(chk);
     el('arm-verd').innerHTML = armVerdictsHtml({
-      n: A.rows.length, nFlex: A.rows.filter(r => r.flex.ok && chk[r.key].okAs).length,
-      wMax: Math.max(...vals.map(c => c.c.wk)), wlim: p.wlim, vMax: sh.vMax
+      n: A.rows.length, nFlex: A.rows.filter(rw => rw.flex.ok && chk[rw.key].okAs).length,
+      wMax: Math.max(...vals.map(c => c.c.wk)), wlim: p.wlim, vMax: sh.vMax,
+      nDet: A.rows.filter(rw => chk[rw.key].okPhi && chk[rw.key].okS && asMaxOk[rw.key]).length
     });
-    const w = [];
-    if (A.rows.some(r => !r.flex.ok)) w.push('Há faces em que x/d passa do limite da NBR 6118 (seria preciso armadura dupla): aumente a espessura do elemento ou o f<sub>ck</sub>.');
-    const fr = [A.frames.B, A.frames.L];
-    if (fr.some(f => f.floated)) w.push('Em alguma combinação todas as molas ficaram tracionadas: a caixa flutua. Os esforços dessa combinação não são confiáveis; confira a aba Flutuação.');
-    else if (fr.some(f => f.uplift)) w.push('Em alguma combinação parte da laje de fundo tende a subir e as molas desse trecho foram desligadas (o solo não resiste à tração).');
-    if (A.rows.some(r => !r.sug.found && !sel[r.key].manual)) w.push('Em alguma face nenhuma combinação de ø 8 a ø 20 com s de 10 a 20 cm atende A<sub>s,nec</sub> e w<sub>k,lim</sub>. A linha mostra a maior área disponível.');
-    if (p.bo > 0 && p.lo > 0) w.push('A abertura da laje de topo não entra no pórtico. Detalhe a armadura de reforço em volta dela à parte.');
-    if (p.zw > m.z.topTop) w.push('O nível d\'água está acima da laje de topo; a pressão da água sobre ela está incluída no peso saturado do solo.');
-    el('arm-warns').innerHTML = w.map(t => `<p>${t}</p>`).join('');
-    el('arm-fig').innerHTML = armFigure(A, armView, armKind);
-    el('arm-figcap').innerHTML = (armView === 'ring'
-      ? `Anel horizontal das paredes, em planta, na cota ${fz(-A.ring.d)} m. `
-      : `Pórtico fechado na direção ${armView} (faixa de 1 m, eixos), com a laje de fundo e a aba sobre molas de Winkler. `) +
-      (armKind === 'M'
-        ? `Momentos fletores de cálculo em kN·m/m, desenhados do lado tracionado; os valores rotulados estão na face dos apoios e no máximo do vão.`
-        : `Esforços cortantes de cálculo em kN/m; os valores rotulados estão na face dos apoios, onde se faz a verificação.`) +
-      ` Combinação com todas as ações majoradas (γ<sub>g</sub> e γ<sub>q</sub>); o dimensionamento usa a envoltória.`;
-    el('arm-table').innerHTML = armTableHtml(A, sel, chk);
+    const wa = [];
+    if (A.rows.some(rw => !rw.flex.ok)) wa.push('Há faces em que x/d passa do limite da NBR 6118 (seria preciso armadura dupla): aumente a espessura do elemento ou o f<sub>ck</sub>.');
+    if (A.rows.some(rw => !rw.sug.found && !sel[rw.key].manual)) wa.push('Em alguma face nenhuma combinação de ø 8 a ø 20 com s de 10 a 20 cm atende A<sub>s,nec</sub> e w<sub>k,lim</sub>. A linha mostra a maior área disponível.');
+    if (A.floated) wa.push('A caixa flutua em alguma combinação ELU; o dimensionamento dessa combinação não é confiável.');
+    if (p.bo > 0 && p.lo > 0) wa.push('Há abertura na laje de topo: detalhe a armadura de reforço em volta dela à parte.');
+    el('arm-warns').innerHTML = wa.map(t => `<p>${t}</p>`).join('');
+    el('arm-table').innerHTML = armTableHtml(A, sel, chk, asMaxOk);
     el('arm-shear').innerHTML = sh.html;
-    el('arm-loads').innerHTML = armLoadsHtml(m, A);
   }
 
   const setStage = s => {
@@ -2147,12 +2558,12 @@ if (typeof document !== 'undefined') {
     el('figcap').textContent = 'Seção transversal pela largura B, em escala, na etapa ' + (stage === 'oper' ? 'de operação' : 'construtiva') + '. O diagrama de empuxo é esquemático e não é resultado de dimensionamento.';
     el('weights').innerHTML = weightsTable(m);
     el('summary').innerHTML = summaryHtml(m);
-    renderArm(m);
+    renderFE(m);
     if (invalid.size === 0) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
   }
   render();
 } else if (typeof globalThis !== 'undefined') {
-  globalThis.__test = { Calc, Arm, drawSection, fmt, DEFAULTS, FIELDS, LAYOUT, weightsTable, stageCard, stageCalc, summaryHtml, warningsFor };
+  globalThis.__test = { Calc, Arm, FEengine, drawSection, fmt, DEFAULTS, FIELDS, LAYOUT, weightsTable, stageCard, stageCalc, summaryHtml, warningsFor };
 }
 </script>
 

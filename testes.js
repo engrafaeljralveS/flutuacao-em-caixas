@@ -1,32 +1,51 @@
-// Testes da v2: solver de pórtico com molas de Winkler e cálculo da caixa padrão.
+// Testes da v3.0: motor de elementos finitos de casca e dimensionamento.
+// Uso: node testes.js [arquivo.html]   (padrão: ./index.html)
 const fs = require('fs');
 const html = fs.readFileSync(process.argv[2] || './index.html', 'utf8');
-const js = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
-new Function(js)();
-const { Calc, Arm, DEFAULTS } = globalThis.__test;
+new Function(html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>')))();
+const { Calc, Arm, FEengine, DEFAULTS } = globalThis.__test;
+const FE = FEengine();
+const ok = (c, msg) => console.log((c ? '  OK   ' : '  FALHA ') + msg);
 
-// 1) Quadro quadrado, só pressão lateral uniforme p = 10 nas paredes: canto = p·a²/24
+// 1) Placa quadrada engastada, carga uniforme (Timoshenko: w = 0,00126 q a⁴/D; M centro = 0,0231 q a², ν = 0,3)
 {
-  const md = Arm.buildModel({ S: 2, Hc: 2, ep: 0.2, es: 0.2, ei: 0.2, ba: 0, E: 2.68e7, kv: 30000 });
-  md.elems.forEach(e => { e.EA = 1e12; });
-  const s = Arm.solveFE(md, { el: md.elems.map(e => e.tag === 'wall' ? [-10, 0, -10, 0] : null), pt: [] });
-  const t = Arm.memberValues(md, s, md.top);
-  console.log('1) canto (lateral):', t.M[t.M.length - 1].toFixed(4), ' esperado', (-10 * 4 / 24).toFixed(4));
+  const a = 1, nd = 20, t = 0.01, E = 1e7, nu = 0.3, D = E * t ** 3 / 12 / (1 - nu * nu);
+  const nodes = [], elems = [], id = (i, j) => i * (nd + 1) + j;
+  for (let i = 0; i <= nd; i++) for (let j = 0; j <= nd; j++) nodes.push([i * a / nd, j * a / nd, 0]);
+  for (let i = 0; i < nd; i++) for (let j = 0; j < nd; j++) elems.push({ s: 'top', n: [id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1)], a: a / nd, b: a / nd, t, c: [0, 0, 0] });
+  const mesh = { nodes, elems }, edge = p => p[0] < 1e-9 || p[1] < 1e-9 || p[0] > a - 1e-9 || p[1] > a - 1e-9;
+  const sys = FE.prepare(mesh, { E, nu }, (n, d) => edge(nodes[n]) || d < 2 || d === 5);
+  const F = FE.areaLoad(mesh, sys.eq, sys.n, () => [0, 0, -1]);
+  const A = Float64Array.from(sys.a0); FE.factor(A, sys.maxa, sys.n); const U = FE.backsub(A, sys.maxa, sys.n, F);
+  const c = id(nd / 2, nd / 2), w = -U[sys.eq[6 * c + 2]] * D;
+  const rec = FE.recovery(mesh), M = FE.nodal(rec, FE.gaussValues(mesh, sys.eq, U, { E, nu })).top[8 * rec.surfIdx.top.get(c)];
+  console.log('1) Placa engastada');
+  ok(Math.abs(w / 0.00126 - 1) < 0.02, `flecha ${w.toFixed(5)} q·a⁴/D (ref. 0,00126)`);
+  ok(Math.abs(-M / 0.0231 - 1) < 0.02, `momento no centro ${(-M).toFixed(4)} q·a² (ref. 0,0231)`);
 }
-// 2) Equilíbrio vertical: soma das reações das molas = carga aplicada
+// 2) Caixa longa (L = 20 m) só com pressão lateral uniforme p = 10: deve reproduzir o pórtico plano (canto p·a²/24)
 {
-  const md = Arm.buildModel({ S: 2.3, Hc: 2.3, ep: 0.2, es: 0.2, ei: 0.2, ba: 0.2, E: 2.68e7, kv: 30000 });
-  const s = Arm.solveFE(md, { el: md.elems.map(e => e.tag === 'top' ? [0, -13.5, 0, -13.5] : null), pt: [] });
-  let R = 0;
-  md.bottom.forEach(k => { const e = md.elems[k]; const L = Math.abs(md.nodes[e.j][0] - md.nodes[e.i][0]); R += -30000 * L * (s.u[3 * e.i + 1] + s.u[3 * e.j + 1]) / 2; });
-  console.log('2) reação das molas:', R.toFixed(3), ' carga:', (13.5 * 1.15).toFixed(3));
+  const L0 = { K: 0, gd: 0, gp: 0, gw: 0, dw: 99, cT: 0, dA: 1, dB: 3, qtSelf: 0, qtSoil: 0, qChim: 0, qbSelf: 0, uBase: 0, qAba: 0, wallW: 0, q: 0, Kq: 10 };
+  const r = FE.analyze({ geo: { Bc: 2, Lc: 20, Hc: 2, ep: 0.2, es: 0.2, ei: 0.2, ba: 0, bo: 0, lo: 0, chimH: 0, h: 0.15 }, mat: { E: 2.5e7, nu: 0.2 }, kv: 3e4, loads: L0, combos: [{ f: [0, 0, 0, 1], lin: true }] });
+  const res = r.results[0].res;
+  // nó mais próximo de (x, y, z) na superfície s
+  const val = (s, x, y, z, k) => { let best = null, dmin = Infinity; r.surfNodes[s].forEach((i, j) => { const p = r.nodes[i], d = Math.hypot(p[0] - x, p[1] - y, p[2] - z); if (d < dmin) { dmin = d; best = res[s][8 * j + k]; } }); return best; };
+  const topM = val('top', 0, 0, 2, 0), wallMid = val('wx', 1, 0, 1, 1), wallFace = val('wx', 1, 0, 1.9, 1);
+  console.log('2) Caixa longa × pórtico plano');
+  ok(Math.abs(topM / 1.6667 - 1) < 0.02, `laje de topo ${topM.toFixed(3)} (ref. 1,667)`);
+  ok(Math.abs(-wallMid / 3.3333 - 1) < 0.02, `meio da parede ${(-wallMid).toFixed(3)} (ref. 3,333)`);
+  ok(Math.abs(wallFace / 0.7167 - 1) < 0.03, `parede na face da laje ${wallFace.toFixed(3)} (ref. 0,717)`);
 }
-// 3) Caixa padrão
-const st = Object.assign({}, DEFAULTS);
-const m = Calc.compute(st);
-console.time('3) cálculo completo');
-const A = Arm.compute(m);
-console.timeEnd('3) cálculo completo');
-A.rows.forEach(r => console.log('  ' + r.key.padEnd(10), 'Md', r.Md.toFixed(2).padStart(6), 'Ms', r.Ms.toFixed(2).padStart(6), 'As', (r.AsCalc || 0).toFixed(2), 'nec', r.AsReq.toFixed(2), '→ ø', r.sug.phi, 'c/', r.sug.s));
-A.shear.forEach(v => console.log('  V ' + v.key.padEnd(8), v.Vd.toFixed(2)));
-['B', 'L'].forEach(d => { const f = A.frames[d]; console.log(`  dir ${d}: p,máx ${f.pMax.toFixed(1)} kPa, recalque ${f.wMax.toFixed(2)} mm, molas desligadas: ${f.uplift}`); });
+// 3) Caixa padrão: equilíbrio, convergência e dimensionamento
+{
+  const m = Calc.compute(Object.assign({}, DEFAULTS));
+  const { inp, aux } = Arm.feInput(m);
+  const r = FE.analyze(inp), A = Arm.post(m, r, aux);
+  console.log(`3) Caixa padrão: ${r.stats.nElem} elementos, ${r.stats.nEq} equações, ${r.stats.ms} ms`);
+  ok(Math.abs(A.R - A.Fz) / A.Fz < 1e-6, `equilíbrio: reações ${A.R.toFixed(2)} kN = cargas ${A.Fz.toFixed(2)} kN`);
+  const inp2 = JSON.parse(JSON.stringify(inp)); inp2.geo.h = 0.075;
+  const A2 = Arm.post(m, FE.analyze(inp2), aux);
+  const dif = Math.max(...A.rows.map((x, i) => Math.abs(x.Mmax - A2.rows[i].Mmax) / Math.max(1, A2.rows[i].Mmax)));
+  ok(dif < 0.05, `convergência 10 × 7,5 cm: maior diferença nos momentos de dimensionamento ${(dif * 100).toFixed(1)} %`);
+  A.rows.forEach(x => console.log('     ' + x.key.padEnd(10), 'Md', x.Md.toFixed(2).padStart(6), 'Nd', x.Nd.toFixed(1).padStart(6), 'Ms', x.Ms.toFixed(2).padStart(6), 'As,nec', x.AsReq.toFixed(2), '→ ø', x.sug.phi, 'c/', x.sug.s));
+}
