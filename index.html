@@ -232,6 +232,18 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 .verdicts.v4 .fs .big { font-size: 34px; }
 @media (max-width: 1180px) { .verdicts.v4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .verdicts.v4 { grid-template-columns: minmax(0, 1fr); } }
+.rgrp { display: grid; gap: 6px; padding: 8px 0; }
+.rgrp + .rgrp { border-top: 1px dashed var(--line); }
+.rgrp .check { margin-top: 0; font-size: 12px; color: var(--ink); }
+.rgrp .check small { display: block; color: var(--muted); font-size: 10.5px; }
+.rbody { display: grid; gap: 6px; padding-left: 22px; }
+.rrow { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+.rrow .barsel { justify-content: flex-start; }
+.rrow select { font: 500 12.5px var(--f-mono); color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 3px 2px; }
+.armt tr.hasref td { border-bottom-style: dashed; }
+.armt tr.refrow td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.reftag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px; margin-right: 4px; }
+.reftxt { color: var(--accent); font-weight: 600; }
 @media (max-width: 720px) { .verdicts.v3 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 980px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -245,7 +257,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.1 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.2 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -430,6 +442,10 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
         <div class="btnrow" style="margin-top:8px"><button class="btn" id="go-flut" type="button">Editar geometria</button><button class="btn" id="go-esf" type="button">Ver esforços</button></div>
       </section>
       <section><h2><span class="n">B</span>Materiais e seção</h2><div class="groups" id="f-am"></div></section>
+      <section><h2><span class="n">C</span>Armaduras de reforço</h2>
+        <p class="gnote">Valem para todas as paredes. O reforço não é dimensionado: soma-se à armadura da tabela, só na borda, e a verificação da borda usa a soma. Além do comprimento, vale só a armadura da tabela.</p>
+        <div id="rf-box"></div>
+      </section>
       <p class="stale" id="arm-stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
       <div class="btnrow"><button class="btn" id="arm-sug" type="button">Sugerir todas as barras</button><button class="btn" id="arm-reset" type="button">Restaurar valores iniciais</button></div>
     </aside>
@@ -459,7 +475,8 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
           <li>Detalhamento das lajes (20.1): ø ≤ h/8 e s ≤ mín(20 cm; 2h).</li>
           <li>Fissuração (17.3.3.2): w<sub>k</sub> = menor de w<sub>1</sub> e w<sub>2</sub>, estádio II, na combinação frequente, contra w<sub>k,lim</sub> da classe de agressividade.</li>
           <li>Cortante (19.4.1): lajes sem armadura transversal, V<sub>Sd</sub> ≤ V<sub>Rd1</sub>.</li>
-          <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária. Ancoragem, emendas e detalhamento dos cantos ficam fora desta versão.</li>
+          <li>Armaduras de reforço (parede–parede e laje de fundo–parede): definidas pelo usuário, somadas à armadura da tabela na faixa da borda. A borda (até o comprimento informado, a partir da face) é verificada com a soma; o campo, só com a armadura da tabela. Na fissuração da borda usa-se a área total com a maior bitola. O reforço externo entra no ρ<sub>1</sub> do cortante na face.</li>
+          <li>Um único d′ para todas as faces; não considera a segunda camada de barras na direção secundária. Ancoragem, emendas e comprimento de traspasse do reforço ficam fora desta versão.</li>
         </ul>
       </details>
     </main>
@@ -1149,7 +1166,9 @@ const Arm = (function () {
   /* ----- pós-processamento: regiões de dimensionamento e envoltórias ----- */
   // índice da direção nas resultantes locais [M1, M2, M12, Q1, Q2, N1, N2, N12]
   const DIR = { top: { B: 0, L: 1 }, bot: { L: 0, B: 1 }, wx: { h: 0, v: 1 }, wy: { v: 0, h: 1 } };
-  function post(m, fe, aux) {
+  // reinf: { pp: {on, len}, lp: {on, len} } — reforço parede–parede (barras horizontais junto aos cantos)
+  // e laje de fundo–parede (barras verticais junto à base); len em cm a partir da face
+  function post(m, fe, aux, reinf) {
     const p = m.p, P = mat(p), G = fe.geo, Hc = aux.Hc, tol = 1e-6;
     const node = i => fe.nodes[i];
     const zf1 = p.ei / 2, zf2 = Hc - p.es / 2;
@@ -1177,11 +1196,17 @@ const Arm = (function () {
         const k = DIR[g.s][dk], reg = g.regs ? g.regs[dk] : g.reg;
         const idx = [], lineIdx = [];
         list.forEach((nd, j) => { const q = node(nd); if (reg(q)) idx.push(j); if (line(q)) lineIdx.push(j); });
+        // borda para o reforço: distância à face do canto (horizontais) ou à face da laje de fundo (verticais)
+        const rType = (g.key === 'wl' || g.key === 'ws') ? (dk === 'h' ? 'pp' : 'lp') : null;
+        const dist = rType === 'pp' ? (g.key === 'wl' ? q => G.yf - q[1] : q => G.xf - q[0]) : q => q[2] - zf1;
+        const rf = rType && reinf && reinf[rType] && reinf[rType].on ? reinf[rType] : null;
+        const edgeIdx = rf ? idx.filter(j => dist(node(list[j])) <= rf.len / 100 + tol) : [], fieldIdx = rf ? idx.filter(j => dist(node(list[j])) > rf.len / 100 + tol) : [];
         ['int', 'ext'].forEach((side, si) => {
+          const demand = set => {
           let best = { As: -1 }, Ms = 0, Mmax = 0;
           for (let c = e0; c < e1; c++) {
             const R = fe.results[c].res[g.s];
-            idx.forEach(j => {
+            set.forEach(j => {
               const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), Md = (side === 'ext' ? wa.e : wa.i)[k], Nd = R[o + 5 + k];
               if (Md > Mmax) Mmax = Md;
               const r = flexN(Md, Nd, hc, p.dl, P), As = Number.isFinite(r.As) ? r.As : 1e9;
@@ -1190,11 +1215,18 @@ const Arm = (function () {
           }
           for (let c = s0; c < s1; c++) {
             const R = fe.results[c].res[g.s];
-            idx.forEach(j => { const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), v = (side === 'ext' ? wa.e : wa.i)[k]; if (v > Ms) Ms = v; });
+            set.forEach(j => { const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), v = (side === 'ext' ? wa.e : wa.i)[k]; if (v > Ms) Ms = v; });
           }
           const r = best.r || { As: 0, xi: 0, ok: true, mode: 'flex' };
-          const AsReq = Math.max(Number.isFinite(r.As) ? r.As : Infinity, mn.As);
-          rows.push({ key: key + '-' + side, group: g.key, el: g.name, dir, face: g.faces[si], side, h: hc, Md: best.Md || 0, Nd: best.Nd || 0, Mmax, Ms, flex: r,
+          return { best, Ms, Mmax, r, AsReq: Math.max(Number.isFinite(r.As) ? r.As : Infinity, mn.As) };
+          };
+          const D = demand(idx), { best, Ms, Mmax, r, AsReq } = D;
+          let ref = null;
+          if (rf) {
+            const E = demand(edgeIdx), F = demand(fieldIdx);
+            ref = { type: rType, len: rf.len, edge: { Md: E.best.Md || 0, Nd: E.best.Nd || 0, Ms: E.Ms, AsReq: E.AsReq, flex: E.r }, field: { Md: F.best.Md || 0, Nd: F.best.Nd || 0, Ms: F.Ms, AsReq: fieldIdx.length ? F.AsReq : mn.As, flex: F.r } };
+          }
+          rows.push({ ref, key: key + '-' + side, group: g.key, el: g.name, dir, face: g.faces[si], side, h: hc, Md: best.Md || 0, Nd: best.Nd || 0, Mmax, Ms, flex: r,
             AsCalc: r.As, AsMin: mn.As, AsReq, govMin: !(r.As > mn.As), sug: suggest(AsReq, Ms, hc, p.dl, P, p.wlim),
             at: best.j != null ? node(list[best.j]) : null, combo: best.c });
         });
@@ -1229,7 +1261,19 @@ const Arm = (function () {
     const c = crack(row.Ms, As, phi, s, row.h, p.dl, P);
     return { As, c, okAs: As >= row.AsReq - 1e-9, okW: c.wk <= p.wlim + 1e-9, okFlex: row.flex.ok, okPhi: phi <= row.h * 10 / 8 + 1e-9, okS: s <= sMax(row.h) + 1e-9 };
   }
-  return { compute: null, check, flex, flexN, asMin, crack, vrd1, suggest, woodArmer, barA, BARS, SPAC, mat, feInput, post, NCOMB, DIR, sMax };
+  // Verificação com reforço: campo (só a armadura da tabela) e borda (tabela + reforço)
+  function checkRef(row, base, rb, p, P) {
+    const R = row.ref, Ab = barA(base.phi) * 100 / base.s, Ar = rb && rb.phi > 0 ? barA(rb.phi) * 100 / rb.s : 0, At = Ab + Ar;
+    const phiE = Ar > 0 ? Math.max(base.phi, rb.phi) : base.phi, sE = 100 * barA(phiE) / At;
+    const cf = crack(R.field.Ms, Ab, base.phi, base.s, row.h, p.dl, P), ce = crack(R.edge.Ms, At, phiE, sE, row.h, p.dl, P);
+    return {
+      Ab, Ar, At, cf, ce,
+      okAsF: Ab >= R.field.AsReq - 1e-9, okAsE: At >= R.edge.AsReq - 1e-9,
+      okWF: cf.wk <= p.wlim + 1e-9, okWE: ce.wk <= p.wlim + 1e-9,
+      okFlex: R.field.flex.ok && R.edge.flex.ok, okPhiR: !(Ar > 0) || rb.phi <= row.h * 10 / 8 + 1e-9
+    };
+  }
+  return { compute: null, check, checkRef, flex, flexN, asMin, crack, vrd1, suggest, woodArmer, barA, BARS, SPAC, mat, feInput, post, NCOMB, DIR, sMax };
 })();
 
 /* ---------- Desenho da seção transversal ---------- */
@@ -2100,37 +2144,66 @@ function armVerdictsHtml(res) {
     card('Detalhamento', 'ø, espaçamento, A<sub>s,máx</sub>', res.nDet === res.n ? 'ok' : 'bad', `${res.nDet}/${res.n}`, 'faces com ø ≤ h/8, s ≤ s<sub>máx</sub><br>e A<sub>s</sub> ≤ 4 % A<sub>c</sub>');
 }
 
-function armTableHtml(A, sel, chk, asMaxOk) {
+function armTableHtml(A, sel, chk, asMaxOk, RF) {
   const opt = (vals, cur, f) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${f(v)}</option>`).join('');
+  const pills = bad => bad.length ? bad.map(b => `<span class="pill bad">${b}</span>`).join(' ') : '<span class="pill ok">✓ Atende</span>';
+  const nd = v => v > 0.005 ? '+' + fmt(v, 1) : fmt(v, 1);
   let h = `<table class="armt"><thead><tr><th class="l">Armadura</th><th class="l">Face tracionada</th><th>M<sub>d</sub></th><th>N<sub>d</sub></th><th>M<sub>ser</sub></th><th>A<sub>s,calc</sub></th><th>A<sub>s,mín</sub></th><th>A<sub>s,nec</sub></th><th>Barras adotadas</th><th>A<sub>s,ef</sub></th><th>w<sub>k</sub></th><th class="l">Verificações NBR 6118</th></tr>
     <tr class="units"><th></th><th></th><th>kN·m/m</th><th>kN/m</th><th>kN·m/m</th><th>cm²/m</th><th>cm²/m</th><th>cm²/m</th><th></th><th>cm²/m</th><th>mm</th><th></th></tr></thead><tbody>`;
   A.groups.forEach(g => {
     h += `<tr class="grp"><td colspan="12">${g.name} · h = ${fmt(g.h * 100, 0)} cm · s<sub>máx</sub> = ${fmt(Arm.sMax(g.h * 100), 0)} cm · ø<sub>máx</sub> = ${fmt(g.h * 1000 / 8, 0)} mm</td></tr>`;
-    A.rows.filter(r => r.group === g.key).forEach((r, i) => {
-      const s = sel[r.key], c = chk[r.key], bad = [];
-      if (!r.flex.ok) bad.push('x/d acima do limite');
-      if (!c.okAs) bad.push(`faltam ${fmt(r.AsReq - c.As, 2)} cm²/m`);
-      if (!c.okW) bad.push('w<sub>k</sub> > w<sub>k,lim</sub>');
-      if (!c.okPhi) bad.push('ø > h/8');
-      if (!c.okS) bad.push('s > s<sub>máx</sub>');
-      if (!asMaxOk[r.key]) bad.push('A<sub>s</sub> > 4 % A<sub>c</sub>');
-      const st = bad.length ? bad.map(b => `<span class="pill bad">${b}</span>`).join(' ') : '<span class="pill ok">✓ Atende</span>';
-      const mode = r.flex.mode && r.flex.mode !== 'flex' ? `<span class="gmin">${r.flex.mode}</span>` : '';
-      h += `<tr${i % 2 ? ' class="pair"' : ''}>${i % 2 === 0 ? `<td class="l" rowspan="2">${r.dir}</td>` : ''}<td class="l">${r.face}</td>
-        <td class="num">${fmt(r.Md, 2)}</td><td class="num">${r.Nd > 0.005 ? '+' + fmt(r.Nd, 1) : fmt(r.Nd, 1)}</td><td class="num">${fmt(r.Ms, 2)}</td><td class="num">${Number.isFinite(r.AsCalc) ? fmt(r.AsCalc, 2) : '—'}${mode}</td><td class="num">${fmt(r.AsMin, 2)}</td>
-        <td class="num"><b>${Number.isFinite(r.AsReq) ? fmt(r.AsReq, 2) : '—'}</b>${r.govMin ? '<span class="gmin">mín.</span>' : ''}</td>
-        <td><div class="barsel"><span>ø</span><select data-k="${r.key}" data-f="phi" aria-label="Bitola, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.BARS, s.phi, fb)}</select><span>c/</span><select data-k="${r.key}" data-f="s" aria-label="Espaçamento em cm, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.SPAC, s.s, fsp)}</select>${s.manual ? '<span class="tagman">manual</span>' : ''}</div></td>
-        <td class="num">${fmt(c.As, 2)}</td><td class="num">${fmt(c.c.wk, 3)}</td><td class="l">${st}</td></tr>`;
+    const gr = A.rows.filter(r => r.group === g.key);
+    gr.forEach((r, i) => {
+      const s = sel[r.key], c = chk[r.key], X = RF[r.key], first = i % 2 === 0;
+      const span = rr => 1 + (RF[rr.key] ? 1 : 0);
+      const dirSpan = first ? span(r) + (gr[i + 1] ? span(gr[i + 1]) : 0) : 0;
+      const mode = fl => fl && fl.mode && fl.mode !== 'flex' ? `<span class="gmin">${fl.mode}</span>` : '';
+      const bars = `<div class="barsel"><span>ø</span><select data-k="${r.key}" data-f="phi" aria-label="Bitola, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.BARS, s.phi, fb)}</select><span>c/</span><select data-k="${r.key}" data-f="s" aria-label="Espaçamento em cm, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.SPAC, s.s, fsp)}</select>${s.manual ? '<span class="tagman">manual</span>' : ''}</div>`;
+      const cls = [i % 2 && !X ? 'pair' : '', X ? 'hasref' : ''].filter(Boolean).join(' ');
+      if (!X) {
+        const bad = [];
+        if (!r.flex.ok) bad.push('x/d acima do limite');
+        if (!c.okAs) bad.push(`faltam ${fmt(r.AsReq - c.As, 2)} cm²/m`);
+        if (!c.okW) bad.push('w<sub>k</sub> > w<sub>k,lim</sub>');
+        if (!c.okPhi) bad.push('ø > h/8');
+        if (!c.okS) bad.push('s > s<sub>máx</sub>');
+        if (!asMaxOk[r.key]) bad.push('A<sub>s</sub> > 4 % A<sub>c</sub>');
+        h += `<tr${cls ? ` class="${cls}"` : ''}>${first ? `<td class="l" rowspan="${dirSpan}">${r.dir}</td>` : ''}<td class="l">${r.face}</td>
+          <td class="num">${fmt(r.Md, 2)}</td><td class="num">${nd(r.Nd)}</td><td class="num">${fmt(r.Ms, 2)}</td><td class="num">${Number.isFinite(r.AsCalc) ? fmt(r.AsCalc, 2) : '—'}${mode(r.flex)}</td><td class="num">${fmt(r.AsMin, 2)}</td>
+          <td class="num"><b>${Number.isFinite(r.AsReq) ? fmt(r.AsReq, 2) : '—'}</b>${r.govMin ? '<span class="gmin">mín.</span>' : ''}</td>
+          <td>${bars}</td><td class="num">${fmt(c.As, 2)}</td><td class="num">${fmt(c.c.wk, 3)}</td><td class="l">${pills(bad)}</td></tr>`;
+        return;
+      }
+      // com reforço: linha do campo (só a armadura da tabela) e linha da borda (tabela + reforço)
+      const F = r.ref.field, E = r.ref.edge, k = X.c;
+      const badF = [], badE = [];
+      if (!F.flex.ok) badF.push('x/d acima do limite');
+      if (!k.okAsF) badF.push(`faltam ${fmt(F.AsReq - k.Ab, 2)} cm²/m`);
+      if (!k.okWF) badF.push('w<sub>k</sub> > w<sub>k,lim</sub>');
+      if (!c.okPhi) badF.push('ø > h/8');
+      if (!c.okS) badF.push('s > s<sub>máx</sub>');
+      if (!E.flex.ok) badE.push('x/d acima do limite');
+      if (!k.okAsE) badE.push(`faltam ${fmt(E.AsReq - k.At, 2)} cm²/m`);
+      if (!k.okWE) badE.push('w<sub>k</sub> > w<sub>k,lim</sub>');
+      if (!k.okPhiR) badE.push('ø do reforço > h/8');
+      if (!asMaxOk[r.key]) badE.push('A<sub>s</sub> > 4 % A<sub>c</sub>');
+      const rTxt = X.bar && X.bar.phi > 0 ? `+ ø ${fb(X.bar.phi)} c/ ${fsp(X.bar.s)}` : 'sem reforço nesta face';
+      h += `<tr class="${cls}">${first ? `<td class="l" rowspan="${dirSpan}">${r.dir}</td>` : ''}<td class="l">${r.face}<span class="gmin">campo (além de ${fmt(r.ref.len, 0)} cm da face)</span></td>
+        <td class="num">${fmt(F.Md, 2)}</td><td class="num">${nd(F.Nd)}</td><td class="num">${fmt(F.Ms, 2)}</td><td class="num">${Number.isFinite(F.flex.As) ? fmt(F.flex.As, 2) : '—'}${mode(F.flex)}</td><td class="num">${fmt(r.AsMin, 2)}</td>
+        <td class="num"><b>${fmt(F.AsReq, 2)}</b></td><td>${bars}</td><td class="num">${fmt(k.Ab, 2)}</td><td class="num">${fmt(k.cf.wk, 3)}</td><td class="l">${pills(badF)}</td></tr>
+        <tr class="refrow${i % 2 ? ' pair' : ''}"><td class="l"><span class="reftag">reforço</span> borda (até ${fmt(r.ref.len, 0)} cm da face)</td>
+        <td class="num">${fmt(E.Md, 2)}</td><td class="num">${nd(E.Nd)}</td><td class="num">${fmt(E.Ms, 2)}</td><td class="num">${Number.isFinite(E.flex.As) ? fmt(E.flex.As, 2) : '—'}${mode(E.flex)}</td><td class="num">${fmt(r.AsMin, 2)}</td>
+        <td class="num"><b>${fmt(E.AsReq, 2)}</b></td><td class="num reftxt">${rTxt}</td><td class="num"><b>${fmt(k.At, 2)}</b><span class="gmin">${fmt(k.Ab, 2)} + ${fmt(k.Ar, 2)}</span></td><td class="num">${fmt(k.ce.wk, 3)}</td><td class="l">${pills(badE)}</td></tr>`;
     });
   });
   return h + '</tbody></table>';
 }
 
-function armShearHtml(A, chk, p) {
+function armShearHtml(A, chk, p, asFace) {
   let h = `<table><thead><tr><th class="l">Elemento</th><th class="l">Direção</th><th>V<sub>Sd</sub> (kN/m)</th><th>d (cm)</th><th>ρ<sub>1</sub> (%)</th><th>k</th><th>V<sub>Rd1</sub> (kN/m)</th><th>V<sub>Sd</sub> ÷ V<sub>Rd1</sub></th><th class="l">Situação</th></tr></thead><tbody>`;
   const out = [];
   A.shear.forEach(v => {
-    const As = chk[v.extKey].As, R = Arm.vrd1(As, v.h, p.dl, A.P), ratio = v.Vd / R.V;
+    const As = asFace ? asFace(v.extKey) : chk[v.extKey].As, R = Arm.vrd1(As, v.h, p.dl, A.P), ratio = v.Vd / R.V;
     out.push(ratio);
     h += `<tr><td class="l">${v.el}</td><td class="l">${v.dir}</td><td class="num">${fmt(v.Vd, 1)}</td><td class="num">${fmt(v.h - p.dl, 1)}</td><td class="num">${fmt(R.rho1 * 100, 3)}</td><td class="num">${fmt(R.k, 2)}</td><td class="num">${fmt(R.V, 1)}</td><td class="num"><b>${fmt(ratio, 2)}</b></td><td class="l">${ratio <= 1 + 1e-9 ? '<span class="pill ok">✓ Dispensa estribos</span>' : '<span class="pill bad">✕ Aumentar espessura</span>'}</td></tr>`;
   });
@@ -2481,6 +2554,33 @@ if (typeof document !== 'undefined') {
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (lastM) drawFE(lastM); }); } catch (e) {}
   ['B', 'L', 'P'].forEach(v => el('sv-' + v).addEventListener('click', () => { view.sv = v; redraw(); }));
 
+  // Armaduras de reforço (todas as paredes)
+  const RFKEY = 'flutuacao-em-caixas-v3-reinf', RF_LEN = [20, 30, 40, 50, 60, 75, 100, 125, 150];
+  const RF_DEF = () => ({ pp: { on: false, len: 50, int: { phi: 10, s: 20 }, ext: { phi: 10, s: 20 } }, lp: { on: false, len: 50, int: { phi: 10, s: 20 }, ext: { phi: 10, s: 20 } } });
+  let reinf = RF_DEF();
+  try {
+    const o = JSON.parse(localStorage.getItem(RFKEY) || 'null');
+    if (o) ['pp', 'lp'].forEach(t => { if (!o[t]) return; const r = reinf[t]; r.on = !!o[t].on; if (RF_LEN.includes(o[t].len)) r.len = o[t].len; ['int', 'ext'].forEach(sd => { const b = o[t][sd]; if (b && (b.phi === 0 || Arm.BARS.includes(b.phi)) && Arm.SPAC.includes(b.s)) r[sd] = { phi: b.phi, s: b.s }; }); });
+  } catch (e) {}
+  const saveRf = () => { try { localStorage.setItem(RFKEY, JSON.stringify(reinf)); } catch (e) {} };
+  const RF_TXT = { pp: ['Parede–parede', 'cantos verticais entre paredes: soma às barras horizontais'], lp: ['Laje de fundo–parede', 'base das paredes: soma às barras verticais'] };
+  const rfOpt = (vals, cur, f) => vals.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}>${f(v)}</option>`).join('');
+  el('rf-box').innerHTML = ['pp', 'lp'].map(t => `<div class="rgrp">
+      <label class="check"><input type="checkbox" id="rf-${t}-on"><span><b>${RF_TXT[t][0]}</b><small>${RF_TXT[t][1]}</small></span></label>
+      <div class="rbody" id="rf-${t}-body">
+        ${['int', 'ext'].map(sd => `<div class="rrow"><span>${sd === 'int' ? 'Interna' : 'Externa'}</span><div class="barsel"><span>ø</span><select data-t="${t}" data-sd="${sd}" data-f="phi" aria-label="Reforço ${RF_TXT[t][0]}, ${sd === 'int' ? 'interna' : 'externa'}: bitola">${rfOpt([0].concat(Arm.BARS), reinf[t][sd].phi, v => v ? fb(v) : 'sem')}</select><span>c/</span><select data-t="${t}" data-sd="${sd}" data-f="s" aria-label="Reforço ${RF_TXT[t][0]}, ${sd === 'int' ? 'interna' : 'externa'}: espaçamento em cm">${rfOpt(Arm.SPAC, reinf[t][sd].s, fsp)}</select></div></div>`).join('')}
+        <div class="rrow"><span>Compr.</span><div class="barsel"><select data-t="${t}" data-f="len" aria-label="Reforço ${RF_TXT[t][0]}: comprimento a partir da face, em cm">${rfOpt(RF_LEN, reinf[t].len, v => String(v))}</select><span>cm a partir da face</span></div></div>
+      </div></div>`).join('');
+  const syncRf = () => ['pp', 'lp'].forEach(t => { el('rf-' + t + '-on').checked = reinf[t].on; el('rf-' + t + '-body').hidden = !reinf[t].on; });
+  syncRf();
+  ['pp', 'lp'].forEach(t => el('rf-' + t + '-on').addEventListener('change', e => { reinf[t].on = e.target.checked; syncRf(); saveRf(); if (lastM) drawFE(lastM); }));
+  el('rf-box').addEventListener('change', e => {
+    const d = e.target.dataset; if (!d || !d.t || !d.f) return;
+    const v = parseFloat(e.target.value);
+    if (d.f === 'len') reinf[d.t].len = v; else reinf[d.t][d.sd][d.f] = v;
+    saveRf(); if (lastM) drawFE(lastM);
+  });
+
   // Armaduras: escolha de barras
   el('arm-table').addEventListener('change', e => {
     const t = e.target; if (!t.dataset || !t.dataset.k) return;
@@ -2497,7 +2597,7 @@ if (typeof document !== 'undefined') {
     });
     syncChecks(); render();
   };
-  el('arm-reset').addEventListener('click', () => { armOv = {}; saveOv(); resetKeys(ARM_KEYS); });
+  el('arm-reset').addEventListener('click', () => { armOv = {}; saveOv(); reinf = RF_DEF(); saveRf(); el('rf-box').querySelectorAll('select').forEach(sl => { const d = sl.dataset; sl.value = String(d.f === 'len' ? reinf[d.t].len : reinf[d.t][d.sd][d.f]); }); syncRf(); resetKeys(ARM_KEYS); });
   el('esf-reset').addEventListener('click', () => resetKeys(ESF_KEYS));
 
   /* ----- Análise por elementos finitos (em segundo plano) ----- */
@@ -2551,7 +2651,7 @@ if (typeof document !== 'undefined') {
     if (!fe.res) { if (!fe.busyKey) setStatus('err', fe.err || 'Sem resultado.'); return; }
     const r = fe.res, p = m.p;
     if (!fe.busyKey && !fe.err) setStatus('', `Esforços calculados: ${fmt(r.stats.nElem, 0)} elementos, ${fmt(r.stats.nEq, 0)} equações, ${fmt(r.stats.ms / 1000, 1)} s.`);
-    const A = Arm.post(m, r, fe.aux);
+    const A = Arm.post(m, r, fe.aux, { pp: { on: reinf.pp.on, len: reinf.pp.len }, lp: { on: reinf.lp.on, len: reinf.lp.len } });
     A.p = p; A.Hc = fe.aux.Hc;
     // aba Esforços
     const Aload = Object.assign({}, fe.aux, { frames: A.frames });
@@ -2578,14 +2678,19 @@ if (typeof document !== 'undefined') {
       const s = (o && Arm.BARS.includes(o.phi) && Arm.SPAC.includes(o.s)) ? { phi: o.phi, s: o.s, manual: true } : { phi: rw.sug.phi, s: rw.sug.s, manual: false };
       sel[rw.key] = s; chk[rw.key] = Arm.check(rw, s.phi, s.s, p, A.P);
     });
+    // reforço: verificação do campo (tabela) e da borda (tabela + reforço)
+    const RF = {};
+    A.rows.forEach(rw => { if (!rw.ref) return; const bar = reinf[rw.ref.type][rw.side]; RF[rw.key] = { bar, c: Arm.checkRef(rw, sel[rw.key], bar, p, A.P) }; });
+    const asEdge = key => RF[key] ? RF[key].c.At : chk[key].As;
     const asMaxOk = {};
-    A.rows.forEach(rw => { const base = rw.key.replace(/-(int|ext)$/, ''), tot = chk[base + '-int'].As + chk[base + '-ext'].As; asMaxOk[rw.key] = tot <= 0.04 * 100 * rw.h + 1e-9; });
-    const sh = armShearHtml(A, chk, p);
-    const vals = Object.values(chk);
+    A.rows.forEach(rw => { const base = rw.key.replace(/-(int|ext)$/, ''), tot = asEdge(base + '-int') + asEdge(base + '-ext'); asMaxOk[rw.key] = tot <= 0.04 * 100 * rw.h + 1e-9; });
+    const sh = armShearHtml(A, chk, p, asEdge);
+    const okFlexRow = rw => RF[rw.key] ? (RF[rw.key].c.okFlex && RF[rw.key].c.okAsF && RF[rw.key].c.okAsE) : (rw.flex.ok && chk[rw.key].okAs);
+    const wkRow = rw => RF[rw.key] ? Math.max(RF[rw.key].c.cf.wk, RF[rw.key].c.ce.wk) : chk[rw.key].c.wk;
     el('arm-verd').innerHTML = armVerdictsHtml({
-      n: A.rows.length, nFlex: A.rows.filter(rw => rw.flex.ok && chk[rw.key].okAs).length,
-      wMax: Math.max(...vals.map(c => c.c.wk)), wlim: p.wlim, vMax: sh.vMax,
-      nDet: A.rows.filter(rw => chk[rw.key].okPhi && chk[rw.key].okS && asMaxOk[rw.key]).length
+      n: A.rows.length, nFlex: A.rows.filter(okFlexRow).length,
+      wMax: Math.max(...A.rows.map(wkRow)), wlim: p.wlim, vMax: sh.vMax,
+      nDet: A.rows.filter(rw => chk[rw.key].okPhi && chk[rw.key].okS && asMaxOk[rw.key] && (!RF[rw.key] || RF[rw.key].c.okPhiR)).length
     });
     const wa = [];
     if (A.rows.some(rw => !rw.flex.ok)) wa.push('Há faces em que x/d passa do limite da NBR 6118 (seria preciso armadura dupla): aumente a espessura do elemento ou o f<sub>ck</sub>.');
@@ -2593,7 +2698,7 @@ if (typeof document !== 'undefined') {
     if (A.floated) wa.push('A caixa flutua em alguma combinação ELU; o dimensionamento dessa combinação não é confiável.');
     if (p.bo > 0 && p.lo > 0) wa.push('Há abertura na laje de topo: detalhe a armadura de reforço em volta dela à parte.');
     el('arm-warns').innerHTML = wa.map(t => `<p>${t}</p>`).join('');
-    el('arm-table').innerHTML = armTableHtml(A, sel, chk, asMaxOk);
+    el('arm-table').innerHTML = armTableHtml(A, sel, chk, asMaxOk, RF);
     el('arm-shear').innerHTML = sh.html;
   }
 
