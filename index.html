@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.4 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.5 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -1351,6 +1351,19 @@ function drawSection(m, oper) {
     o.push(`<rect x="${f1(X(-m.Bext / 2))}" y="${f1(Y(0))}" width="${f1(m.Bext * s)}" height="${f1((0 - z.topBot) * s)}" style="fill:var(--surface)"/>`);
   }
   // agua dentro da caixa nao e considerada: nada a desenhar
+  // etapa construtiva: escavação aberta junto às paredes (folga ilustrativa além da aba), sem solo encostado
+  const xe = m.Binf / 2 + 0.40;
+  if (!oper) {
+    const wl = Math.min(Math.max(zwD, z.base), 0);
+    [-1, 1].forEach(sg => {
+      const xa = sg > 0 ? X(m.Bext / 2) : X(-xe), xb = sg > 0 ? X(xe) : X(-m.Bext / 2);
+      o.push(`<rect x="${f1(xa)}" y="${f1(Y(0))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(0))}" style="fill:var(--surface)"/>`);
+      if (zwD > z.base) o.push(`<rect x="${f1(xa)}" y="${f1(Y(wl))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(wl))}" style="fill:var(--water);opacity:.18"/>`);
+      const xc = X(sg * xe);
+      o.push(`<polyline points="${f1(xc)},${f1(Y(0))} ${f1(xc)},${f1(Y(z.base))} ${f1(X(sg * m.Binf / 2))},${f1(Y(z.base))}" style="fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:6 4"/>`);
+    });
+    o.push(`<text class="halo" x="${f1(X(xe) - 4)}" y="${f1(Y(0) + 16)}" text-anchor="end" font-size="11" style="fill:var(--muted)">escavação</text>`);
+  }
 
   // concreto
   const rect = (x0, x1, zt, zb) => `<rect x="${f1(X(x0))}" y="${f1(Y(zt))}" width="${f1((x1 - x0) * s)}" height="${f1((zt - zb) * s)}" fill="url(#pc)" style="stroke:var(--ink);stroke-width:1.4"/>`;
@@ -1372,7 +1385,8 @@ function drawSection(m, oper) {
   }
 
   // terreno
-  o.push(`<line x1="${f1(xl)}" y1="${f1(Y(0))}" x2="${f1(xr)}" y2="${f1(Y(0))}" style="stroke:var(--ink);stroke-width:2.2"/>`);
+  if (oper) o.push(`<line x1="${f1(xl)}" y1="${f1(Y(0))}" x2="${f1(xr)}" y2="${f1(Y(0))}" style="stroke:var(--ink);stroke-width:2.2"/>`);
+  else [[xl, X(-xe)], [X(xe), xr]].forEach(([a, b]) => o.push(`<line x1="${f1(a)}" y1="${f1(Y(0))}" x2="${f1(b)}" y2="${f1(Y(0))}" style="stroke:var(--ink);stroke-width:2.2"/>`));
   o.push(`<text class="halo" x="${f1(xr - 4)}" y="${f1(Y(0) - 7)}" text-anchor="end" font-size="12" style="fill:var(--ink)">Terreno  z = 0,00</text>`);
 
   // nível d'água
@@ -1428,8 +1442,8 @@ function drawSection(m, oper) {
     o.push(`<line x1="${f1(x0)}" y1="${f1(Y(0) + 1)}" x2="${f1(x0)}" y2="${f1(Y(z.topTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
     o.push(`<text class="halo" x="${f1(x0 + 8)}" y="${f1(Y(z.topTop / 2) + 4)}" font-size="11" style="fill:var(--ink)">solo s/ laje  ${fmt(m.soloTopo.t)} m</text>`);
   }
-  // solo sobre a aba
-  if (p.ba > 0 && m.soloAba.t > 0) {
+  // solo sobre a aba (só na operação: na etapa construtiva a escavação está aberta)
+  if (oper && p.ba > 0 && m.soloAba.t > 0) {
     const xa = X(-(m.Bext / 2 + p.ba / 2));
     o.push(`<line x1="${f1(xa)}" y1="${f1(Y(0) + 1)}" x2="${f1(xa)}" y2="${f1(Y(z.botTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
     o.push(`<text class="halo" x="${f1(xa - 8)}" y="${f1(Y(z.botTop / 2) + 4)}" text-anchor="end" font-size="11" style="fill:var(--ink)">solo s/ aba  ${fmt(m.soloAba.t)} m</text>`);
@@ -1455,7 +1469,7 @@ function drawSection(m, oper) {
   // empuxo lateral (esquemático) na parede direita
   const zStart = Math.min(0, oper ? z.topTop : z.topBot);
   const lat = Calc.lateral({ ...p, zw: zwD }, zStart, z.botTop);
-  if (lat.pts.length >= 2) {
+  if (oper && lat.pts.length >= 2) {
     const x0 = X(m.Bext / 2);
     const maxT = Math.max(...lat.pts.map(q => q.sig + q.u));
     const avail = (xr - x0) - 120;
@@ -2321,7 +2335,7 @@ async function buildMemorialFull(D) {
   ]));
   body.push(H2('1.2 Seções e ações atuantes'));
   const iC = await addImg(memorialSvg(m, false)), iO = await addImg(memorialSvg(m, true));
-  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: pesos, empuxo lateral e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
+  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes; pesos e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
   body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba, empuxo lateral e subpressão.', 0.86));
   body.push(H2('1.3 Fator de segurança'));
   const stageRows = (title, st) => {
@@ -2338,10 +2352,7 @@ async function buildMemorialFull(D) {
 
   /* ===== 2. Esforços ===== */
   body.push(H1('2. Esforços solicitantes (elementos finitos)'));
-  body.push(H2('2.1 Modelo'));
-  body.push(txt(`Modelo tridimensional da caixa pela superfície média de lajes e paredes, em ¼ (simetria em x = 0 e y = 0), com elementos de casca de 4 nós (placa MITC4 e membrana com modos incompatíveis). Malha de até ${fmt(p.hm, 1)} cm, refinada junto às ligações: ${fmt(fe.stats.nElem, 0)} elementos e ${fmt(fe.stats.nEq, 0)} equações. Concreto E_cs = ${fmt(P.Ecs / 1000, 1)} GPa, ν = 0,2. Laje de fundo e aba sobre molas de Winkler k_v = ${fmt(p.kv, 0)} kN/m³, só de compressão. Esforços nos nós por recuperação SPR; momentos de dimensionamento de Wood-Armer.`));
-  body.push(txt(`Equilíbrio vertical (característica g + q): soma das reações ${fmt(A.R, 2)} kN; cargas ${fmt(A.Fz, 2)} kN. Pressão máxima no solo ${fmt(A.pMax, 1)} kPa; recalque máximo ${fmt(A.wMax, 2)} mm.` + (A.lifted > 0 ? ` Em alguma combinação ELU, ${A.lifted} de ${A.nSpring} molas foram desligadas por tração.` : '')));
-  body.push(H2('2.2 Ações características'));
+  body.push(H2('2.1 Ações características'));
   const pg = aux.pg, dw = aux.dw, rowsAct = [
     { span: 'Cargas verticais (kN/m²)' },
     ['Laje de topo: peso próprio + solo', { t: `${fmt(aux.qtSelf, 2)} + ${fmt(aux.qtSoil, 2)}`, al: 'right' }, num(aux.qtg), 'permanente'],
@@ -2358,7 +2369,7 @@ async function buildMemorialFull(D) {
   ];
   body.push(table([4306, 2300, 1600, 2000], ['Ação', 'Posição', 'Valor', 'Natureza'], rowsAct));
   body.push(txt(`Combinações: ELU com cada ação permanente multiplicada por 1,0 ou γ_g = ${fmt(p.gg, 2)} e cada parcela da sobrecarga (vertical e lateral) por 0 ou γ_q = ${fmt(p.gq, 2)}, nas 16 combinações; ELS frequente g + ψ_1 q, com ψ_1 = ${fmt(p.psi1, 2)}.`));
-  body.push(H2('2.3 Diagramas de momento fletor e esforço cortante'));
+  body.push(H2('2.2 Diagramas de momento fletor e esforço cortante'));
   body.push(txt('Combinação ELU com todas as ações majoradas, pelas faixas centrais (eixos dos elementos). Momentos em kN·m/m desenhados do lado tracionado; cortantes em kN/m. Os trechos tracejados ficam dentro dos nós parede-laje e não entram no dimensionamento.', { color: C.muted }));
   const strips = [['B', 'M'], ['B', 'V'], ['L', 'M'], ['L', 'V'], ['P', 'M'], ['P', 'V']];
   const sIdx = [];
@@ -2369,7 +2380,7 @@ async function buildMemorialFull(D) {
     body.push(figPair(sIdx[i], sIdx[i + 1], `Figura ${fig} · Momento fletor, ${sName[strips[i][0]]}`, `Figura ${fig + 1} · Esforço cortante, ${sName[strips[i][0]]}`));
     fig += 2;
   }
-  body.push(H2('2.4 Esforços de dimensionamento'));
+  body.push(H2('2.3 Esforços de dimensionamento'));
   const envRows = [];
   A.groups.forEach(g => {
     envRows.push({ span: `${g.name} · h = ${fmt(g.h * 100, 0)} cm` });
@@ -2379,7 +2390,7 @@ async function buildMemorialFull(D) {
     });
   });
   body.push(table([1500, 2406, 1200, 1200, 1300, 1300, 1300], ['Armadura', 'Face tracionada', 'M_d (kN·m/m)', 'N_d (kN/m)', 'M_{d,máx}', 'M_ser', 'V_Sd (kN/m)'], envRows));
-  body.push(txt('Envoltória das 16 combinações ELU (Wood-Armer) nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
+  body.push(txt('Envoltória das 16 combinações ELU nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
 
   /* ===== 3. Armaduras ===== */
   body.push(H1('3. Dimensionamento das armaduras (NBR 6118)'));
@@ -2991,7 +3002,7 @@ if (typeof document !== 'undefined') {
       stageCard('Etapa de operação', 'Caixa completa, com solo sobre a laje de topo', m.oper, m);
     el('calc').innerHTML = stageCalc('Etapa construtiva', m.constr, m) + stageCalc('Etapa de operação', m.oper, m);
     el('fig').innerHTML = drawSection(m, stage === 'oper');
-    el('figcap').textContent = 'Seção transversal pela largura B, em escala, na etapa ' + (stage === 'oper' ? 'de operação' : 'construtiva') + '. O diagrama de empuxo é esquemático e não é resultado de dimensionamento.';
+    el('figcap').textContent = stage === 'oper' ? 'Seção transversal pela largura B, em escala, na etapa de operação. O diagrama de empuxo é esquemático.' : 'Seção transversal pela largura B, em escala, na etapa construtiva: escavação aberta, sem solo encostado nas paredes (folga ilustrativa).';
     el('weights').innerHTML = weightsTable(m);
     el('summary').innerHTML = summaryHtml(m);
     renderFE(m);

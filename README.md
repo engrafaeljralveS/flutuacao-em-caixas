@@ -28,5 +28,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v3.2**: armaduras de reforço parede–parede (horizontais nos cantos) e laje de fundo–parede (verticais na base), interna e externa, definidas pelo usuário e verificadas na borda junto com a armadura da tabela.
 - **v3.3**: o reforço é definido nas paredes longas e vale para as quatro paredes (quatro cantos e quatro bordas com a laje de fundo); a borda é verificada com a envoltória das paredes longas e curtas.
 - **v3.4**: memorial de cálculo completo em Word (aba Armaduras): flutuação, esforços com diagramas de momento e cortante, e resumo das armaduras com as verificações.
+- **v3.5**: corte da etapa construtiva com a escavação aberta (sem solo junto às paredes); memorial sem a descrição do modelo.
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.
