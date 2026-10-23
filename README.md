@@ -26,5 +26,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v3.0**: esforços por elementos finitos de casca (MITC4 + membrana), em ¼ da caixa com simetria, molas de Winkler só de compressão, Wood-Armer e flexo-tração; abas Esforços (análise) e Armaduras (dimensionamento).
 - **v3.1**: mapa e diagramas com os mesmos esforços (só na região de dimensionamento, nós parede-laje hachurados), cores suaves com interpolação contínua, e a aba coberta pela armadura da laje de fundo.
 - **v3.2**: armaduras de reforço parede–parede (horizontais nos cantos) e laje de fundo–parede (verticais na base), interna e externa, definidas pelo usuário e verificadas na borda junto com a armadura da tabela.
+- **v3.3**: o reforço é definido nas paredes longas e vale para as quatro paredes (quatro cantos e quatro bordas com a laje de fundo); a borda é verificada com a envoltória das paredes longas e curtas.
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.

@@ -257,7 +257,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.2 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.3 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -443,7 +443,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       </section>
       <section><h2><span class="n">B</span>Materiais e seção</h2><div class="groups" id="f-am"></div></section>
       <section><h2><span class="n">C</span>Armaduras de reforço</h2>
-        <p class="gnote">Valem para todas as paredes. O reforço não é dimensionado: soma-se à armadura da tabela, só na borda, e a verificação da borda usa a soma. Além do comprimento, vale só a armadura da tabela.</p>
+        <p class="gnote">Definido nas paredes longas e válido para as quatro paredes: o reforço parede–parede vai nos quatro cantos, e o laje de fundo–parede nas quatro bordas da laje com as paredes. Não é dimensionado: soma-se à armadura da tabela, só na borda, e a verificação da borda das 4 paredes usa a soma. Além do comprimento, vale só a armadura da tabela.</p>
         <div id="rf-box"></div>
       </section>
       <p class="stale" id="arm-stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
@@ -1234,6 +1234,18 @@ const Arm = (function () {
         for (let c = e0; c < e1; c++) { const R = fe.results[c].res[g.s]; lineIdx.forEach(j => { const v = Math.abs(R[8 * j + 3 + k]); if (v > Vd) { Vd = v; Vat = node(list[j]); } }); }
         shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd, at: Vat, extKey: key + (g.key === 'aba' ? '-int' : '-ext') });
       });
+    });
+
+    // reforço: definido nas paredes longas e válido para as quatro paredes. A linha de borda das paredes
+    // longas leva a envoltória das bordas das paredes longas e curtas; as curtas mostram só o campo.
+    rows.forEach(rl => {
+      if (!rl.ref || rl.group !== 'wl') return;
+      const rs = rows.find(x => x.key === rl.key.replace(/^wl-/, 'ws-'));
+      if (!rs || !rs.ref) return;
+      const EL = rl.ref.edge, ES = rs.ref.edge, gov = (ES.AsReq > EL.AsReq + 1e-9 || (Math.abs(ES.AsReq - EL.AsReq) < 1e-9 && ES.Md > EL.Md)) ? ES : EL;
+      rl.ref.edgeL = EL; rl.ref.edgeS = ES; rl.ref.partner = rs.key;
+      rl.ref.edge = Object.assign({}, gov, { Ms: Math.max(EL.Ms, ES.Ms), flex: Object.assign({}, gov.flex, { ok: EL.flex.ok && ES.flex.ok }), from: gov === ES ? 'curtas' : 'longas' });
+      rs.ref.hidden = true;
     });
 
     // resumo da análise
@@ -2155,11 +2167,12 @@ function armTableHtml(A, sel, chk, asMaxOk, RF) {
     const gr = A.rows.filter(r => r.group === g.key);
     gr.forEach((r, i) => {
       const s = sel[r.key], c = chk[r.key], X = RF[r.key], first = i % 2 === 0;
-      const span = rr => 1 + (RF[rr.key] ? 1 : 0);
+      const span = rr => 1 + (RF[rr.key] && !rr.ref.hidden ? 1 : 0);
       const dirSpan = first ? span(r) + (gr[i + 1] ? span(gr[i + 1]) : 0) : 0;
       const mode = fl => fl && fl.mode && fl.mode !== 'flex' ? `<span class="gmin">${fl.mode}</span>` : '';
       const bars = `<div class="barsel"><span>ø</span><select data-k="${r.key}" data-f="phi" aria-label="Bitola, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.BARS, s.phi, fb)}</select><span>c/</span><select data-k="${r.key}" data-f="s" aria-label="Espaçamento em cm, ${g.name}, ${r.dir}, face ${r.face}">${opt(Arm.SPAC, s.s, fsp)}</select>${s.manual ? '<span class="tagman">manual</span>' : ''}</div>`;
-      const cls = [i % 2 && !X ? 'pair' : '', X ? 'hasref' : ''].filter(Boolean).join(' ');
+      const sub = X && !r.ref.hidden;
+      const cls = [i % 2 && !sub ? 'pair' : '', sub ? 'hasref' : ''].filter(Boolean).join(' ');
       if (!X) {
         const bad = [];
         if (!r.flex.ok) bad.push('x/d acima do limite');
@@ -2188,12 +2201,15 @@ function armTableHtml(A, sel, chk, asMaxOk, RF) {
       if (!k.okPhiR) badE.push('ø do reforço > h/8');
       if (!asMaxOk[r.key]) badE.push('A<sub>s</sub> > 4 % A<sub>c</sub>');
       const rTxt = X.bar && X.bar.phi > 0 ? `+ ø ${fb(X.bar.phi)} c/ ${fsp(X.bar.s)}` : 'sem reforço nesta face';
-      h += `<tr class="${cls}">${first ? `<td class="l" rowspan="${dirSpan}">${r.dir}</td>` : ''}<td class="l">${r.face}<span class="gmin">campo (além de ${fmt(r.ref.len, 0)} cm da face)</span></td>
+      const fieldNote = r.ref.hidden ? `campo · borda no reforço das paredes longas` : `campo (além de ${fmt(r.ref.len, 0)} cm da face)`;
+      h += `<tr${cls ? ` class="${cls}"` : ''}>${first ? `<td class="l" rowspan="${dirSpan}">${r.dir}</td>` : ''}<td class="l">${r.face}<span class="gmin">${fieldNote}</span></td>
         <td class="num">${fmt(F.Md, 2)}</td><td class="num">${nd(F.Nd)}</td><td class="num">${fmt(F.Ms, 2)}</td><td class="num">${Number.isFinite(F.flex.As) ? fmt(F.flex.As, 2) : '—'}${mode(F.flex)}</td><td class="num">${fmt(r.AsMin, 2)}</td>
-        <td class="num"><b>${fmt(F.AsReq, 2)}</b></td><td>${bars}</td><td class="num">${fmt(k.Ab, 2)}</td><td class="num">${fmt(k.cf.wk, 3)}</td><td class="l">${pills(badF)}</td></tr>
-        <tr class="refrow${i % 2 ? ' pair' : ''}"><td class="l"><span class="reftag">reforço</span> borda (até ${fmt(r.ref.len, 0)} cm da face)</td>
+        <td class="num"><b>${fmt(F.AsReq, 2)}</b></td><td>${bars}</td><td class="num">${fmt(k.Ab, 2)}</td><td class="num">${fmt(k.cf.wk, 3)}</td><td class="l">${pills(badF)}</td></tr>`;
+      if (r.ref.hidden) return;
+      const atNote = k.both ? `longas ${fmt(k.AtL, 2)} · curtas ${fmt(k.AtS, 2)}` : `${fmt(k.Ab, 2)} + ${fmt(k.Ar, 2)}`;
+      h += `<tr class="refrow${i % 2 ? ' pair' : ''}"><td class="l"><span class="reftag">reforço</span> borda das 4 paredes (até ${fmt(r.ref.len, 0)} cm da face)${E.from ? `<span class="gmin">governa: paredes ${E.from}</span>` : ''}</td>
         <td class="num">${fmt(E.Md, 2)}</td><td class="num">${nd(E.Nd)}</td><td class="num">${fmt(E.Ms, 2)}</td><td class="num">${Number.isFinite(E.flex.As) ? fmt(E.flex.As, 2) : '—'}${mode(E.flex)}</td><td class="num">${fmt(r.AsMin, 2)}</td>
-        <td class="num"><b>${fmt(E.AsReq, 2)}</b></td><td class="num reftxt">${rTxt}</td><td class="num"><b>${fmt(k.At, 2)}</b><span class="gmin">${fmt(k.Ab, 2)} + ${fmt(k.Ar, 2)}</span></td><td class="num">${fmt(k.ce.wk, 3)}</td><td class="l">${pills(badE)}</td></tr>`;
+        <td class="num"><b>${fmt(E.AsReq, 2)}</b></td><td class="num reftxt">${rTxt}</td><td class="num"><b>${fmt(k.At, 2)}</b><span class="gmin">${atNote}</span></td><td class="num">${fmt(k.ce.wk, 3)}</td><td class="l">${pills(badE)}</td></tr>`;
     });
   });
   return h + '</tbody></table>';
@@ -2681,12 +2697,21 @@ if (typeof document !== 'undefined') {
     // reforço: verificação do campo (tabela) e da borda (tabela + reforço)
     const RF = {};
     A.rows.forEach(rw => { if (!rw.ref) return; const bar = reinf[rw.ref.type][rw.side]; RF[rw.key] = { bar, c: Arm.checkRef(rw, sel[rw.key], bar, p, A.P) }; });
+    // borda das quatro paredes: combina a verificação das paredes longas com a das curtas
+    A.rows.forEach(rw => {
+      if (!rw.ref || !rw.ref.partner || !RF[rw.key] || !RF[rw.ref.partner]) return;
+      const cL = RF[rw.key].c, cS = RF[rw.ref.partner].c;
+      RF[rw.key].c = Object.assign({}, cL, {
+        okAsE: cL.okAsE && cS.okAsE, okWE: cL.okWE && cS.okWE, okFlex: cL.okFlex && cS.okFlex,
+        ce: { wk: Math.max(cL.ce.wk, cS.ce.wk) }, At: Math.min(cL.At, cS.At), AtL: cL.At, AtS: cS.At, both: true
+      });
+    });
     const asEdge = key => RF[key] ? RF[key].c.At : chk[key].As;
     const asMaxOk = {};
     A.rows.forEach(rw => { const base = rw.key.replace(/-(int|ext)$/, ''), tot = asEdge(base + '-int') + asEdge(base + '-ext'); asMaxOk[rw.key] = tot <= 0.04 * 100 * rw.h + 1e-9; });
     const sh = armShearHtml(A, chk, p, asEdge);
-    const okFlexRow = rw => RF[rw.key] ? (RF[rw.key].c.okFlex && RF[rw.key].c.okAsF && RF[rw.key].c.okAsE) : (rw.flex.ok && chk[rw.key].okAs);
-    const wkRow = rw => RF[rw.key] ? Math.max(RF[rw.key].c.cf.wk, RF[rw.key].c.ce.wk) : chk[rw.key].c.wk;
+    const okFlexRow = rw => !RF[rw.key] ? (rw.flex.ok && chk[rw.key].okAs) : rw.ref.hidden ? (rw.ref.field.flex.ok && RF[rw.key].c.okAsF) : (RF[rw.key].c.okFlex && RF[rw.key].c.okAsF && RF[rw.key].c.okAsE);
+    const wkRow = rw => !RF[rw.key] ? chk[rw.key].c.wk : rw.ref.hidden ? RF[rw.key].c.cf.wk : Math.max(RF[rw.key].c.cf.wk, RF[rw.key].c.ce.wk);
     el('arm-verd').innerHTML = armVerdictsHtml({
       n: A.rows.length, nFlex: A.rows.filter(okFlexRow).length,
       wMax: Math.max(...A.rows.map(wkRow)), wlim: p.wlim, vMax: sh.vMax,
