@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.5 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.6 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -579,6 +579,20 @@ const Calc = (function () {
     vol.soilArea = soilArea;
     const soloTopo = layer(p, z.topTop, soilArea, true);
     const soloAba = layer(p, z.botTop, infArea - supArea, true);
+    // Prisma de solo: cunha que parte da borda da laje inferior (com a aba), na cota da face superior
+    // dela, e sobe até o terreno abrindo para fora com o ângulo φ (medido da vertical), nas quatro faces,
+    // com os cantos. Fração saturada com γ′ = γsat − γw, como o solo sobre a aba.
+    const prisma = (() => {
+      const h = Math.max(0, 0 - z.botTop), tg = Math.tan(Math.max(0, p.phi) * Math.PI / 180), satTop = Math.min(0, p.zw);
+      const gS = Math.max(0, p.gsat - p.gw), n = 400, dt = h / n;
+      let V = 0, Vsat = 0, W = 0;
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) * dt, a = t * tg, ring = 2 * a * (Binf + Linf) + 4 * a * a, zz = z.botTop + t;
+        const sat = zz <= satTop;
+        V += ring * dt; if (sat) Vsat += ring * dt; W += ring * dt * (sat ? gS : p.gd);
+      }
+      return { h, tg, a: h * tg, V, Vsat, Vdry: V - Vsat, W, gS };
+    })();
 
     // Subpressão: A = área externa das paredes, sem a aba. Na etapa construtiva, o rebaixo do
     // lençol (ponteiras) limita o nível d'água à cota zr: vale o menor entre zw e zr.
@@ -597,7 +611,8 @@ const Calc = (function () {
         { key: 'inferior', label: 'Peso da laje inferior', W: Wi, div: p.fc, incl: true },
         { key: 'superior', label: 'Peso da laje de topo', W: Ws, div: p.fc, incl: oper },
         { key: 'soloAba', label: 'Solo sobre a aba inferior', W: soloAba.W, div: p.fs, incl: oper ? true : !!p.abaConstr },
-        { key: 'soloTopo', label: 'Solo sobre a laje de topo', W: soloTopo.W, div: p.fst, incl: oper }
+        { key: 'soloTopo', label: 'Solo sobre a laje de topo', W: soloTopo.W, div: p.fst, incl: oper },
+        { key: 'prisma', label: 'Prisma de solo (ângulo φ)', W: prisma.W, div: p.fpr, incl: oper && !!p.prisma }
       ];
       if (Wchim > 0) parts.splice(3, 0, { key: 'chamine', label: 'Chaminé da abertura (até o terreno)', W: Wchim, div: p.fc, incl: oper });
       if (p.wa > 0) parts.push({ key: 'adicional', label: 'Peso adicional (equipamentos, ancoragens)', W: p.wa, div: p.fa, incl: oper });
@@ -607,7 +622,7 @@ const Calc = (function () {
       return { parts, R, FS, status, sub: sb };
     }
     return {
-      p, Bext, Lext, Binf, Linf, Htot, z, vol, W: { p: Wp, i: Wi, s: Ws, open: Wopen, chim: Wchim }, soloTopo, soloAba,
+      p, Bext, Lext, Binf, Linf, Htot, z, vol, W: { p: Wp, i: Wi, s: Ws, open: Wopen, chim: Wchim }, soloTopo, soloAba, prisma,
       sub, subC, constr: stage(false), oper: stage(true)
     };
   }
@@ -1448,6 +1463,17 @@ function drawSection(m, oper) {
     o.push(`<line x1="${f1(xa)}" y1="${f1(Y(0) + 1)}" x2="${f1(xa)}" y2="${f1(Y(z.botTop) - 1)}" marker-start="url(#aI)" marker-end="url(#aI)" style="stroke:var(--ink);stroke-width:1"/>`);
     o.push(`<text class="halo" x="${f1(xa - 8)}" y="${f1(Y(z.botTop / 2) + 4)}" text-anchor="end" font-size="11" style="fill:var(--ink)">solo s/ aba  ${fmt(m.soloAba.t)} m</text>`);
   }
+  // prisma de solo (etapa de operação)
+  if (oper && p.prisma && m.prisma.V > 0) {
+    [-1, 1].forEach(sg => {
+      const x0 = sg * m.Binf / 2, x1 = sg * (m.Binf / 2 + m.prisma.a), xc = sg > 0 ? Math.min(X(x1), xr) : Math.max(X(x1), xl);
+      o.push(`<polygon points="${f1(X(x0))},${f1(Y(z.botTop))} ${f1(X(x0))},${f1(Y(0))} ${f1(xc)},${f1(Y(0))}" style="fill:var(--bad);fill-opacity:.10;stroke:var(--bad);stroke-width:1.4;stroke-dasharray:6 3"/>`);
+    });
+    const xa = X(-m.Binf / 2), yb = Y(z.botTop), r = 34, ang = Math.atan(m.prisma.tg);
+    o.push(`<path d="M${f1(xa)},${f1(yb - r)} A${r},${r} 0 0 0 ${f1(xa - r * Math.sin(ang))},${f1(yb - r * Math.cos(ang))}" style="fill:none;stroke:var(--bad);stroke-width:1.2"/>`);
+    o.push(`<text class="halo" x="${f1(xa - r * Math.sin(ang / 2) - 4)}" y="${f1(yb - r - 6)}" text-anchor="end" font-size="11" style="fill:var(--bad);font-weight:600">φ = ${fmt(p.phi, 0)}°</text>`);
+    o.push(`<text class="halo" x="${f1(X(m.Binf / 2 + m.prisma.a * 0.35))}" y="${f1(Y(0) + 16)}" text-anchor="middle" font-size="11" style="fill:var(--bad);font-weight:600">prisma de solo</text>`);
+  }
   // largura da aba
   if (p.ba > 0) {
     const yb = Y(z.base) + 16;
@@ -1518,7 +1544,7 @@ function drawSection(m, oper) {
 const DEFAULTS = {
   B: 2.10, L: 2.50, H: 2.10, ep: 0.20, ei: 0.20, es: 0.20, zs: -0.50, ba: 0.20, gc: 25,
   gd: 17, gsat: 19, phi: 30, c: 0, zw: -2.00, gw: 10,
-  fc: 1.10, fs: 1.30, fst: 1.10, fa: 1.10, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
+  fc: 1.10, fs: 1.10, fst: 1.10, fa: 1.10, fpr: 1.30, prisma: true, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
   fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, kv: 30000, hm: 10
 };
 const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim'];
@@ -1547,6 +1573,7 @@ const FIELDS = [
   { key: 'fs', lab: 'Solo sobre a aba', tip: 'Divisor do solo sobre a aba', unit: '', gt: 0 },
   { key: 'fst', lab: 'Solo sobre a laje', tip: 'Divisor do solo sobre a laje de topo', unit: '', gt: 0 },
   { key: 'fa', lab: 'Peso adicional', tip: 'Divisor do peso adicional', unit: '', gt: 0 },
+  { key: 'fpr', lab: 'Divisor do prisma', tip: 'Divisor do peso do prisma de solo', unit: '', gt: 0 },
   { key: 'fsmin', lab: 'FS mínimo (FS >)', tip: 'Fator de segurança mínimo do critério', unit: '', ge: 0 },
   { key: 'fck', lab: 'Concreto, f<sub>ck</sub>', tip: 'Resistência característica do concreto à compressão', unit: 'MPa', ge: 20, le: 90, dec: 0 },
   { key: 'fyk', lab: 'Aço, f<sub>yk</sub>', tip: 'Resistência característica de escoamento do aço (CA-50 = 500)', unit: 'MPa', gt: 0, dec: 0 },
@@ -1569,6 +1596,7 @@ const LAYOUT = [
   { sec: 'geo', title: 'Cota, concreto e carga adicional', cols: 3, keys: ['zs', 'gc', 'wa'], note: 'z<sub>s</sub>: cota da face superior da laje de topo, negativa abaixo do terreno (z = 0); valor de exemplo. W<sub>ad</sub>: equipamentos, blocos de ancoragem etc., só na etapa de operação.' },
   { sec: 'solo', title: 'Peso específico', cols: 2, keys: ['gd', 'gsat'] },
   { sec: 'solo', title: 'Resistência ao cisalhamento', cols: 2, keys: ['phi', 'c'] },
+  { sec: 'solo', title: 'Prisma de solo (etapa de operação)', cols: 2, keys: ['fpr'], check: { key: 'prisma', text: 'Considerar o prisma de solo na verificação à flutuação (etapa de operação)' }, note: 'Cunha de solo que parte da borda da aba, na face superior da laje inferior, e sobe até o terreno abrindo com o ângulo φ (medido da vertical), nas quatro faces e nos cantos. Não entra na etapa construtiva.' },
   { sec: 'agua', title: 'Nível d\'água e peso da água', cols: 2, keys: ['zw', 'gw'], note: 'z<sub>w</sub> em relação ao terreno (z = 0). Ex.: 2,0 m abaixo do terreno = −2,00.' },
   { sec: 'agua', title: 'Rebaixo do lençol freático (etapa construtiva)', cols: 2, keys: ['zr'], note: 'Cota até onde as ponteiras mantêm o lençol, por exemplo −1,20. Na etapa construtiva o nível d\'água passa a ser o menor entre z<sub>w</sub> e z<sub>r</sub>, e a subpressão diminui. Vazio = sem rebaixo.' },
   { sec: 'prem', title: 'Divisores', cols: 2, keys: ['fc', 'fs', 'fst', 'fa'] },
@@ -1619,6 +1647,9 @@ function weightsTable(m) {
       <tr class="grp"><td colspan="6">Solo</td></tr>
       ${soilRows(m.soloTopo, m.vol.chimH > 0 ? 'Solo sobre a laje de topo (sem a área da chaminé)' : m.vol.openArea > 0 ? 'Solo sobre a laje de topo (sem a área da abertura)' : 'Solo sobre a laje de topo', 'soloTopo', true)}
       ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', true)}
+      ${m.prisma.V > 0 ? row('s', `Prisma de solo (φ = ${fmt(p.phi, 1)}°, nas quatro faces)`, `h = ${fmt(m.prisma.h)} m, abertura h·tg φ = ${fmt(m.prisma.a)} m · V = ${fmt(m.prisma.V)} m³`, m.prisma.Vsat > 0 && m.prisma.Vdry > 0 ? `${fmt(p.gd, 1)} / ${fmt(m.prisma.gS, 1)}` : (m.prisma.Vsat > 0 ? fmt(m.prisma.gS, 1) : fmt(p.gd, 1)), m.prisma.W, 'prisma') : ''}
+      ${m.prisma.V > 0 && m.prisma.Vdry > 0 ? sub('seco', `${fmt(m.prisma.Vdry)} m³`, fmt(p.gd, 1), m.prisma.Vdry * p.gd) : ''}
+      ${m.prisma.V > 0 && m.prisma.Vsat > 0 ? sub('saturado, só a fração de solo (γ′)', `${fmt(m.prisma.Vsat)} m³`, fmt(m.prisma.gS, 1), m.prisma.Vsat * m.prisma.gS) : ''}
       ${p.wa > 0 ? `<tr class="grp"><td colspan="6">Adicional</td></tr>` + row('a', 'Peso adicional (equipamentos, blocos de ancoragem)', 'valor informado', '—', p.wa, 'adicional') : ''}
     </tbody></table>${subpressaoTable(m)}`;
 }
@@ -1862,7 +1893,8 @@ function memorialDocXml(m, imgs) {
     ['φ / c', `${fmt(p.phi, 1)}° / ${fmt(p.c, 1)} kPa`],
     ['N.A. zw · rebaixo zr', `${fz(p.zw)} m · ${p.zr != null ? fz(p.zr) + ' m' : 'sem rebaixo'}`],
     ['Divisores: concreto · aba', `${fmt(p.fc, 2)} · ${fmt(p.fs, 2)}`],
-    ['Divisores: topo · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`]
+    ['Divisores: topo · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`],
+    ['Prisma de solo (φ)', p.prisma ? `÷ ${fmt(p.fpr, 2)} · ${fmt(m.prisma.W, 1)} kN` : 'não considerado']
   ];
   const kc = (t, w, v) => wCell(w, wPar(wRun(t, { sz: SZ, b: v, color: v ? '1b2830' : '566872' }), { al: v ? 'right' : 'left' }), { bottom: LN });
   const inRows = [wRow([wCell(10546, wPar(wRun('DADOS DE ENTRADA', { b: true, sz: 13, color: '1d5f8a' })), { span: 4, bottom: '1d5f8a' })])];
@@ -2331,12 +2363,13 @@ async function buildMemorialFull(D) {
     ['Cota do topo da laje · da base', `${fz(z.topTop)} · ${fz(z.base)} m`], ['Peso específico do concreto γ_c', `${fmt(p.gc, 1)} kN/m³`],
     ['Solo seco γ_d · saturado γ_sat', `${fmt(p.gd, 1)} · ${fmt(p.gsat, 1)} kN/m³`], ['Ângulo de atrito φ · coesão c', `${fmt(p.phi, 1)}° · ${fmt(p.c, 1)} kPa`],
     ['Nível d\'água z_w', `${fz(p.zw)} m`], ['Rebaixo na etapa construtiva z_r', p.zr != null ? `${fz(p.zr)} m` : 'sem rebaixo'],
-    ['Divisores: concreto · solo sobre a aba', `${fmt(p.fc, 2)} · ${fmt(p.fs, 2)}`], ['Divisores: solo sobre a laje · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`]
+    ['Divisores: concreto · solo sobre a aba', `${fmt(p.fc, 2)} · ${fmt(p.fs, 2)}`], ['Divisores: solo sobre a laje · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`],
+    ['Prisma de solo (ângulo φ, operação)', p.prisma ? `considerado, divisor ${fmt(p.fpr, 2)}` : 'não considerado'], ['Prisma: abertura no terreno · volume', `${fmt(m.prisma.a)} m · ${fmt(m.prisma.V)} m³`]
   ]));
   body.push(H2('1.2 Seções e ações atuantes'));
   const iC = await addImg(memorialSvg(m, false)), iO = await addImg(memorialSvg(m, true));
   body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes; pesos e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
-  body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba, empuxo lateral e subpressão.', 0.86));
+  body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba' + (p.prisma ? ', prisma de solo (ângulo φ)' : '') + ', empuxo lateral e subpressão.', 0.86));
   body.push(H2('1.3 Fator de segurança'));
   const stageRows = (title, st) => {
     const rows = [{ span: title }];
@@ -2667,7 +2700,7 @@ function esfTableHtml(D) {
 if (typeof document !== 'undefined') {
   const KEY = 'flutuacao-em-caixas-v3';
   const state = Object.assign({}, DEFAULTS);
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) Object.keys(DEFAULTS).forEach(k => { if (k in s && (typeof s[k] === typeof DEFAULTS[k] || (DEFAULTS[k] === null && (s[k] === null || typeof s[k] === 'number')))) state[k] = s[k]; }); } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) { Object.keys(DEFAULTS).forEach(k => { if (k in s && (typeof s[k] === typeof DEFAULTS[k] || (DEFAULTS[k] === null && (s[k] === null || typeof s[k] === 'number')))) state[k] = s[k]; }); if (!('prisma' in s) && s.fs === 1.3) state.fs = DEFAULTS.fs; } } catch (e) {}
   let stage = 'oper';
   const el = id => document.getElementById(id);
   const invalid = new Set();
