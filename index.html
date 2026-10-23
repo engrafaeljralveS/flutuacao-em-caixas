@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.6 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.7 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -284,7 +284,6 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <details class="prem">
         <summary>Premissas do modelo</summary>
         <div class="groups" id="f-prem"></div>
-        <label class="check"><input type="checkbox" id="abaConstr" checked><span>Considerar o solo sobre a aba na etapa construtiva (roteiro 7.1: "quando existente e aplicável").</span></label>
         <div class="memo"><button class="btn" id="memorial" type="button">Gerar memorial de cálculo compactado (Word)</button><p class="gnote" id="memmsg" role="status"></p></div>
       </details>
       <p class="stale" id="stale" hidden>Há campos inválidos. Os resultados mostram os últimos valores válidos.</p>
@@ -610,7 +609,7 @@ const Calc = (function () {
         { key: 'paredes', label: 'Peso das paredes', W: Wp, div: p.fc, incl: true },
         { key: 'inferior', label: 'Peso da laje inferior', W: Wi, div: p.fc, incl: true },
         { key: 'superior', label: 'Peso da laje de topo', W: Ws, div: p.fc, incl: oper },
-        { key: 'soloAba', label: 'Solo sobre a aba inferior', W: soloAba.W, div: p.fs, incl: oper ? true : !!p.abaConstr },
+        { key: 'soloAba', label: 'Solo sobre a aba inferior', W: soloAba.W, div: p.fs, incl: oper },
         { key: 'soloTopo', label: 'Solo sobre a laje de topo', W: soloTopo.W, div: p.fst, incl: oper },
         { key: 'prisma', label: 'Prisma de solo (ângulo φ)', W: prisma.W, div: p.fpr, incl: oper && !!p.prisma }
       ];
@@ -1865,7 +1864,7 @@ function memorialDocXml(m, imgs) {
     return wCell(w, body, { fill: v[2] });
   };
   const fsTbl = wTbl([5273, 5273], [wRow([
-    fsCell(5273, 'Etapa construtiva', m.subC.rebaixo ? 'sem laje de topo · N.A. rebaixado' : 'sem laje de topo', m.constr),
+    fsCell(5273, 'Etapa construtiva', m.subC.rebaixo ? 'escavação aberta · N.A. rebaixado' : 'escavação aberta', m.constr),
     fsCell(5273, 'Etapa de operação', 'caixa completa, com solo sobre a laje', m.oper)])], { box: 'ffffff', mar: 50, padx: 100 });
 
   const imgBlock = (title, im, idx) => {
@@ -2368,7 +2367,7 @@ async function buildMemorialFull(D) {
   ]));
   body.push(H2('1.2 Seções e ações atuantes'));
   const iC = await addImg(memorialSvg(m, false)), iO = await addImg(memorialSvg(m, true));
-  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes; pesos e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
+  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes e sobre a aba; peso das paredes e da laje inferior, e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
   body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba' + (p.prisma ? ', prisma de solo (ângulo φ)' : '') + ', empuxo lateral e subpressão.', 0.86));
   body.push(H2('1.3 Fator de segurança'));
   const stageRows = (title, st) => {
@@ -2381,7 +2380,7 @@ async function buildMemorialFull(D) {
       : [{ t: 'Sem subpressão (U = 0): FS não se aplica', b: true }, '', '', '']);
     return rows;
   };
-  body.push(table([4806, 1700, 1900, 1800], ['Parcela', 'Peso (kN)', 'Divisor', 'Resistência (kN)'], stageRows('Etapa construtiva (sem laje de topo)', m.constr).concat(stageRows('Etapa de operação (caixa completa)', m.oper))));
+  body.push(table([4806, 1700, 1900, 1800], ['Parcela', 'Peso (kN)', 'Divisor', 'Resistência (kN)'], stageRows('Etapa construtiva (escavação aberta: paredes e laje inferior)', m.constr).concat(stageRows('Etapa de operação (caixa completa)', m.oper))));
 
   /* ===== 2. Esforços ===== */
   body.push(H1('2. Esforços solicitantes (elementos finitos)'));
@@ -2744,15 +2743,13 @@ if (typeof document !== 'undefined') {
     if (g.note) wrap.insertAdjacentHTML('beforeend', `<p class="gnote">${g.note}</p>`);
     el('f-' + g.sec).appendChild(wrap);
   });
-  el('abaConstr').checked = !!state.abaConstr;
-  el('abaConstr').addEventListener('change', e => { state.abaConstr = e.target.checked; render(); });  el('reset').addEventListener('click', () => {
+  el('reset').addEventListener('click', () => {
     Object.assign(state, DEFAULTS);
     invalid.clear();
     FIELDS.forEach(f => {
       el('in-' + f.key).value = state[f.key] == null ? '' : fmt(state[f.key], decOf(f));
       el('box-' + f.key).classList.remove('bad'); el('box-' + f.key).querySelector('.err').hidden = true;
     });
-    el('abaConstr').checked = true;
     syncChecks();
     render();
   });
@@ -3031,7 +3028,7 @@ if (typeof document !== 'undefined') {
     const m = Calc.compute(state);
     el('warns').innerHTML = warningsFor(m).map(t => `<p>${t}</p>`).join('');
     el('verdicts').innerHTML =
-      stageCard('Etapa construtiva', m.subC.rebaixo ? `Sem laje de topo; lençol rebaixado a ${fz(m.subC.zw)} m` : 'Sem laje de topo e sem solo sobre ela', m.constr, m) +
+      stageCard('Etapa construtiva', m.subC.rebaixo ? `Escavação aberta, só paredes e laje inferior; lençol rebaixado a ${fz(m.subC.zw)} m` : 'Escavação aberta: só paredes e laje inferior', m.constr, m) +
       stageCard('Etapa de operação', 'Caixa completa, com solo sobre a laje de topo', m.oper, m);
     el('calc').innerHTML = stageCalc('Etapa construtiva', m.constr, m) + stageCalc('Etapa de operação', m.oper, m);
     el('fig').innerHTML = drawSection(m, stage === 'oper');

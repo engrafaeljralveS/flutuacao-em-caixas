@@ -30,5 +30,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v3.4**: memorial de cálculo completo em Word (aba Armaduras): flutuação, esforços com diagramas de momento e cortante, e resumo das armaduras com as verificações.
 - **v3.5**: corte da etapa construtiva com a escavação aberta (sem solo junto às paredes); memorial sem a descrição do modelo.
 - **v3.6**: prisma de solo (cunha com o ângulo φ, da face superior da laje inferior até o terreno, nas quatro faces) na verificação à flutuação da etapa de operação, com divisor próprio (1,30) e opção de considerar ou não; divisor do solo sobre a aba passa a 1,10.
+- **v3.7**: etapa construtiva com escavação aberta: só o peso das paredes e da laje inferior (sem solo sobre a aba).
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.
