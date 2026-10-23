@@ -24,5 +24,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v2.0**: laje de fundo e aba sobre molas de Winkler (só compressão), diagramas de momento e cortante, dimensionamento da aba.
 - **v2.1**: aba Esforços, com os diagramas das ações (solo, água, subpressão, sobrecarga, cargas permanentes e reação do terreno).
 - **v3.0**: esforços por elementos finitos de casca (MITC4 + membrana), em ¼ da caixa com simetria, molas de Winkler só de compressão, Wood-Armer e flexo-tração; abas Esforços (análise) e Armaduras (dimensionamento).
+- **v3.1**: mapa e diagramas com os mesmos esforços (só na região de dimensionamento, nós parede-laje hachurados), cores suaves com interpolação contínua, e a aba coberta pela armadura da laje de fundo.
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.

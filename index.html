@@ -245,7 +245,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.0 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.1 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -378,6 +378,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
         <ul class="maplegend">
           <li><span class="sw" style="background:var(--pos)"></span>+ momento traciona a face externa · normal de tração</li>
           <li><span class="sw" style="background:var(--neg)"></span>− momento traciona a face interna · normal de compressão</li>
+          <li><span class="sw" style="background:repeating-linear-gradient(45deg,var(--muted) 0 1px,transparent 1px 4px)"></span>hachurado: dentro dos nós parede-laje (fora do dimensionamento)</li>
         </ul>
       </section>
 
@@ -402,7 +403,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <section class="panel" aria-label="Esforços de dimensionamento">
         <h2><span class="n">G</span>Esforços de dimensionamento</h2>
         <div class="tablewrap" id="env-table"></div>
-        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU, com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
+        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU, com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios (fora dos nós parede-laje). Na laje de fundo, a região inclui a aba: vão e aba levam a mesma armadura, comandada pelo maior esforço. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
       </section>
 
       <details class="panel">
@@ -1156,11 +1157,12 @@ const Arm = (function () {
     const groups = [
       { key: 'top', name: 'Laje de topo', h: p.es, s: 'top', faces: ['inferior (interna)', 'superior (externa)'], reg: q => q[0] <= G.xf + tol && q[1] <= G.yf + tol,
         items: [['top-B', 'Paralela a B', 'B', q => Math.abs(q[0] - G.xf) < tol && q[1] <= G.yf + tol], ['top-L', 'Paralela a L', 'L', q => Math.abs(q[1] - G.yf) < tol && q[0] <= G.xf + tol]] },
-      { key: 'bot', name: 'Laje de fundo (vão interno)', h: p.ei, s: 'bot', faces: ['superior (interna)', 'inferior (externa)'], reg: q => q[0] <= G.xf + tol && q[1] <= G.yf + tol,
-        items: [['bot-B', 'Paralela a B', 'B', q => Math.abs(q[0] - G.xf) < tol && q[1] <= G.yf + tol], ['bot-L', 'Paralela a L', 'L', q => Math.abs(q[1] - G.yf) < tol && q[0] <= G.xf + tol]] }
+      // laje de fundo: o vão interno e a aba levam a mesma armadura; a envoltória cobre as duas regiões
+      { key: 'bot', name: p.ba > 0 ? 'Laje de fundo (vão e aba)' : 'Laje de fundo', h: p.ei, s: 'bot', faces: ['superior (interna)', 'inferior (externa)'],
+        reg: q => (q[0] <= G.xf + tol && q[1] <= G.yf + tol) || (p.ba > 0 && (q[0] >= G.xo - tol || q[1] >= G.yo - tol)),
+        items: [['bot-B', 'Paralela a B', 'B', q => (Math.abs(q[0] - G.xf) < tol && q[1] <= G.yf + tol) || (p.ba > 0 && Math.abs(q[0] - G.xo) < tol)],
+                ['bot-L', 'Paralela a L', 'L', q => (Math.abs(q[1] - G.yf) < tol && q[0] <= G.xf + tol) || (p.ba > 0 && Math.abs(q[1] - G.yo) < tol)]] }
     ];
-    if (p.ba > 0) groups.push({ key: 'aba', name: 'Aba da laje de fundo (balanço)', h: p.ei, s: 'bot', faces: ['superior', 'inferior'], regs: { B: q => q[0] >= G.xo - tol, L: q => q[1] >= G.yo - tol },
-      items: [['aba-B', 'Balanço em B (junto às paredes longas)', 'B', q => Math.abs(q[0] - G.xo) < tol], ['aba-L', 'Balanço em L (junto às paredes curtas)', 'L', q => Math.abs(q[1] - G.yo) < tol]] });
     groups.push(
       { key: 'wl', name: 'Paredes longas (ao longo de L)', h: p.ep, s: 'wx', faces: ['interna', 'externa'], reg: q => q[1] <= G.yf + tol && inZ(q),
         items: [['wl-v', 'Vertical', 'v', q => (Math.abs(q[2] - zf1) < tol || Math.abs(q[2] - zf2) < tol) && q[1] <= G.yf + tol], ['wl-h', 'Horizontal', 'h', q => Math.abs(q[1] - G.yf) < tol && inZ(q)]] },
@@ -1895,8 +1897,19 @@ function nodeValue(fe, cIdx, s, j, comp) {
   const k = { M1: 0, M2: 1, M12: 2, Q1: 3, Q2: 4, N1: 5, N2: 6, N12: 7 }[comp];
   return r.res[s][8 * j + k];
 }
+// cores (RGB) a partir das variáveis de tema
+function themeRGB(name, fb) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const h = v.match(/^#([0-9a-f]{6})$/i); if (h) return [0, 2, 4].map(k => parseInt(h[1].slice(k, k + 2), 16));
+    const r = v.match(/rgba?\(([^)]+)\)/); if (r) return r[1].split(',').slice(0, 3).map(x => parseFloat(x));
+  } catch (e) {}
+  return fb;
+}
+const MAP_ALPHA = 0.72;   // intensidade máxima da cor (paleta suave)
 function mapFigure(fe, A, m, s, comp, cIdx) {
   const kIdx = { M1: 0, M2: 1, M12: 2, Q1: 3, Q2: 4, N1: 5, N2: 6, N12: 7 }[comp];
+  const G = fe.geo, p = m.p, Hc = A.Hc;
   const idxOf = new Map(fe.surfNodes[s].map((i, j) => [i, j]));
   const vals = fe.surfNodes[s].map((_, j) => nodeValue(fe, cIdx, s, j, comp));
   const slab = s === 'top' || s === 'bot';
@@ -1908,48 +1921,83 @@ function mapFigure(fe, A, m, s, comp, cIdx) {
   const sc = Math.min((W - 2 * pad - 70) / (2 * hmax), (Hh - 2 * pad) / (H1 - H0));
   const cx = (W - 70) / 2, cy = Hh / 2 + (H1 + H0) / 2 * sc;
   const X = h => cx + h * sc, Y = v => cy - v * sc;
-  const sym = v => [v];
-  const vmax = Math.max(1e-12, ...vals.map(Math.abs));
-  let rects = '', best = { v: -Infinity }, worst = { v: Infinity };
   const flipH = FLIP[s].h.includes(kIdx), flipV = FLIP[s].v.includes(kIdx);
   const mirrors = slab ? [[1, 1], [-1, 1], [1, -1], [-1, -1]] : [[1, 1], [-1, 1]];
+  const sgn = (sh, sv) => (sh < 0 && flipH ? -1 : 1) * (sv < 0 && flipV ? -1 : 1);
+  const vmax = Math.max(1e-12, ...vals.map(Math.abs));
+  // máximo e mínimo nodais, só na região de dimensionamento (fora dos nós parede-laje)
+  let best = { v: -Infinity }, worst = { v: Infinity };
+  fe.surfNodes[s].forEach((i, j) => {
+    const q = fe.nodes[i]; if (!inDesign(s, q, G, p, Hc)) return;
+    const [h, v] = surfCoords(s, q);
+    mirrors.forEach(([sh, sv]) => { const val = vals[j] * sgn(sh, sv); if (val > best.v) best = { v: val, x: X(sh * h), y: Y(sv * v) }; if (val < worst.v) worst = { v: val, x: X(sh * h), y: Y(sv * v) }; });
+  });
+  // escala de cores pelos extremos da região de dimensionamento (dentro dos nós a cor satura)
+  const vsc = Math.max(1e-12, Number.isFinite(best.v) ? Math.abs(best.v) : 0, Number.isFinite(worst.v) ? Math.abs(worst.v) : 0) > 1e-9 ? Math.max(Math.abs(best.v), Math.abs(worst.v)) : vmax;
+  // sombreamento contínuo (interpolação bilinear dos valores nodais) desenhado em canvas
+  const x0 = X(-hmax), y0 = Y(H1), wpx = 2 * hmax * sc, hpx = (H1 - H0) * sc;
+  let img = '', hover = '';
+  const quads = [];
   els.forEach(e => {
-    const pts = e.n.map(i => surfCoords(s, fe.nodes[i]));
-    const v = e.n.reduce((a, i) => a + vals[idxOf.get(i)], 0) / 4;
-    const h0 = Math.min(...pts.map(q => q[0])), h1 = Math.max(...pts.map(q => q[0])), v0 = Math.min(...pts.map(q => q[1])), v1 = Math.max(...pts.map(q => q[1]));
+    const nv = e.n.map(i => vals[idxOf.get(i)]), pts = e.n.map(i => surfCoords(s, fe.nodes[i]));
     mirrors.forEach(([sh, sv]) => {
-      const val = v * (sh < 0 && flipH ? -1 : 1) * (sv < 0 && flipV ? -1 : 1);
-      const xa = X(sh > 0 ? h0 : -h1), xb = X(sh > 0 ? h1 : -h0), ya = Y(sv > 0 ? v1 : -v0), yb = Y(sv > 0 ? v0 : -v1);
-      const op = 0.06 + 0.86 * Math.min(1, Math.abs(val) / vmax);
-      rects += `<rect x="${xa.toFixed(1)}" y="${ya.toFixed(1)}" width="${(xb - xa + 0.4).toFixed(1)}" height="${(yb - ya + 0.4).toFixed(1)}" style="fill:var(--${val >= 0 ? 'pos' : 'neg'});fill-opacity:${op.toFixed(3)}"><title>${fmt(val, 2)}</title></rect>`;
-      const ccx = (xa + xb) / 2, ccy = (ya + yb) / 2;
-      if (val > best.v) best = { v: val, x: ccx, y: ccy };
-      if (val < worst.v) worst = { v: val, x: ccx, y: ccy };
+      const c = pts.map(([h, v], k) => ({ x: X(sh * h), y: Y(sv * v), val: nv[k] * sgn(sh, sv) }));
+      const xa = Math.min(...c.map(q => q.x)), xb = Math.max(...c.map(q => q.x)), ya = Math.min(...c.map(q => q.y)), yb = Math.max(...c.map(q => q.y));
+      const at = (x, y) => c.find(q => Math.abs(q.x - x) < 1e-6 && Math.abs(q.y - y) < 1e-6).val;
+      quads.push({ xa, xb, ya, yb, v00: at(xa, ya), v10: at(xb, ya), v01: at(xa, yb), v11: at(xb, yb) });
+      hover += `<rect x="${xa.toFixed(1)}" y="${ya.toFixed(1)}" width="${(xb - xa).toFixed(1)}" height="${(yb - ya).toFixed(1)}" style="fill:transparent"><title>${fmt((c[0].val + c[1].val + c[2].val + c[3].val) / 4, 2)}</title></rect>`;
     });
   });
-  // contorno, faces dos apoios e eixos
-  const G = fe.geo, lines = [];
-  const dash = (x1, y1, x2, y2) => lines.push(`<line x1="${X(x1).toFixed(1)}" y1="${Y(y1).toFixed(1)}" x2="${X(x2).toFixed(1)}" y2="${Y(y2).toFixed(1)}" style="stroke:var(--ink);stroke-width:.8;stroke-dasharray:4 3;opacity:.55"/>`);
-  if (s === 'top' || s === 'bot') {
-    [G.xf, -G.xf].forEach(x => dash(x, -G.yf - (s === 'bot' ? 0 : 0), x, G.yf)); [G.yf, -G.yf].forEach(y => dash(-G.xf, y, G.xf, y));
-    if (s === 'bot') { [G.xo, -G.xo].forEach(x => dash(x, -G.yo, x, G.yo)); [G.yo, -G.yo].forEach(y => dash(-G.xo, y, G.xo, y)); }
-  } else {
-    const hf = s === 'wx' ? G.yf : G.xf;
-    [hf, -hf].forEach(h => dash(h, 0, h, A.Hc)); [m.p.ei / 2, A.Hc - m.p.es / 2].forEach(v => dash(-hmax, v, hmax, v));
+  if (typeof document !== 'undefined' && document.createElement) {
+    try {
+      const R = 2, cv = document.createElement('canvas');
+      cv.width = Math.ceil(wpx * R); cv.height = Math.ceil(hpx * R);
+      const g = cv.getContext('2d'), im = g.createImageData(cv.width, cv.height), d = im.data;
+      const bg = themeRGB('--surface', [248, 250, 249]), cp = themeRGB('--pos', [194, 65, 12]), cn = themeRGB('--neg', [29, 95, 138]);
+      quads.forEach(Q => {
+        const pxa = Math.floor((Q.xa - x0) * R), pxb = Math.ceil((Q.xb - x0) * R), pya = Math.floor((Q.ya - y0) * R), pyb = Math.ceil((Q.yb - y0) * R);
+        for (let py = Math.max(0, pya); py < Math.min(cv.height, pyb); py++) {
+          const t = Math.min(1, Math.max(0, ((py + 0.5) / R + y0 - Q.ya) / (Q.yb - Q.ya)));
+          for (let px = Math.max(0, pxa); px < Math.min(cv.width, pxb); px++) {
+            const u = Math.min(1, Math.max(0, ((px + 0.5) / R + x0 - Q.xa) / (Q.xb - Q.xa)));
+            const v = (1 - u) * (1 - t) * Q.v00 + u * (1 - t) * Q.v10 + (1 - u) * t * Q.v01 + u * t * Q.v11;
+            const a = MAP_ALPHA * Math.min(1, Math.abs(v) / vsc), c = v >= 0 ? cp : cn, o = 4 * (py * cv.width + px);
+            d[o] = bg[0] + (c[0] - bg[0]) * a; d[o + 1] = bg[1] + (c[1] - bg[1]) * a; d[o + 2] = bg[2] + (c[2] - bg[2]) * a; d[o + 3] = 255;
+          }
+        }
+      });
+      g.putImageData(im, 0, 0);
+      img = `<image href="${cv.toDataURL('image/png')}" x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${wpx.toFixed(1)}" height="${hpx.toFixed(1)}" preserveAspectRatio="none"/>`;
+    } catch (e) { img = ''; }
   }
-  const ext = `<rect x="${X(-hmax).toFixed(1)}" y="${Y(H1).toFixed(1)}" width="${(2 * hmax * sc).toFixed(1)}" height="${((H1 - H0) * sc).toFixed(1)}" style="fill:none;stroke:var(--ink);stroke-width:1.2"/>`;
-  const mark = (o, lab) => o.v === Infinity || o.v === -Infinity || Math.abs(o.v) < vmax * 0.02 ? '' : `<circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="3.5" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.2"/><text class="halo" x="${(o.x + 6).toFixed(1)}" y="${(o.y - 6).toFixed(1)}" font-size="12" font-family="var(--f-mono)" style="fill:var(--ink)">${lab} ${fmt(o.v, 2)}</text>`;
-  // legenda
+  if (!img) quads.forEach(Q => { const v = (Q.v00 + Q.v10 + Q.v01 + Q.v11) / 4; img += `<rect x="${Q.xa.toFixed(1)}" y="${Q.ya.toFixed(1)}" width="${(Q.xb - Q.xa + 0.4).toFixed(1)}" height="${(Q.yb - Q.ya + 0.4).toFixed(1)}" style="fill:var(--${v >= 0 ? 'pos' : 'neg'});fill-opacity:${(MAP_ALPHA * Math.min(1, Math.abs(v) / vsc)).toFixed(3)}"/>`; });
+  // faixas dentro dos nós parede-laje: hachuradas
+  const hatch = [], hr = (h0, h1, v0, v1) => { const xa = X(h0), xb = X(h1), ya = Y(v1), yb = Y(v0); hatch.push(`<rect x="${Math.min(xa, xb).toFixed(1)}" y="${Math.min(ya, yb).toFixed(1)}" width="${Math.abs(xb - xa).toFixed(1)}" height="${Math.abs(yb - ya).toFixed(1)}" fill="url(#mhatch)"/>`); };
+  if (s === 'top') { [1, -1].forEach(k => { hr(k * G.xf, k * G.xw, -G.yw, G.yw); hr(-G.xf, G.xf, k * G.yf, k * G.yw); }); }
+  else if (s === 'bot') { [1, -1].forEach(k => { hr(k * G.xf, k * G.xo, -G.yo, G.yo); hr(-G.xf, G.xf, k * G.yf, k * G.yo); }); }
+  else { const hf = s === 'wx' ? G.yf : G.xf, hw = s === 'wx' ? G.yw : G.xw; [1, -1].forEach(k => hr(k * hf, k * hw, 0, Hc)); hr(-hf, hf, 0, p.ei / 2); hr(-hf, hf, Hc - p.es / 2, Hc); }
+  const ext = `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${wpx.toFixed(1)}" height="${hpx.toFixed(1)}" style="fill:none;stroke:var(--ink);stroke-width:1.2"/>`;
+  const mark = (o, lab) => !Number.isFinite(o.v) || Math.abs(o.v) < vmax * 0.02 ? '' : `<circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="3.5" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.2"/><text class="halo" x="${(o.x + 6).toFixed(1)}" y="${(o.y - 6).toFixed(1)}" font-size="12" font-family="var(--f-mono)" style="fill:var(--ink)">${lab} ${fmt(o.v, 2)}</text>`;
+  // legenda contínua
   const lx = W - 50, ly0 = pad, lh = Hh - 2 * pad, unit = (mapComps(s).find(c => c[0] === comp) || [, , ''])[2];
-  let leg = '';
-  for (let i = 0; i < 40; i++) { const t = 1 - i / 39 * 2, op = 0.06 + 0.86 * Math.abs(t); leg += `<rect x="${lx}" y="${(ly0 + i * lh / 40).toFixed(1)}" width="14" height="${(lh / 40 + 0.5).toFixed(1)}" style="fill:var(--${t >= 0 ? 'pos' : 'neg'});fill-opacity:${op.toFixed(3)}"/>`; }
-  leg += `<rect x="${lx}" y="${ly0}" width="14" height="${lh}" style="fill:none;stroke:var(--line)"/>`;
-  leg += `<text x="${lx + 7}" y="${ly0 - 8}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">+${fmt(vmax, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 16}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">−${fmt(vmax, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 30}" text-anchor="middle" font-size="10.5" style="fill:var(--muted)">${unit}</text>`;
+  const leg = `<rect x="${lx}" y="${ly0}" width="14" height="${lh}" fill="url(#mleg)" style="stroke:var(--line)"/>
+    <text x="${lx + 7}" y="${ly0 - 8}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">+${fmt(vsc, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 16}" text-anchor="middle" font-size="11" font-family="var(--f-mono)" style="fill:var(--ink)">−${fmt(vsc, 1)}</text><text x="${lx + 7}" y="${ly0 + lh + 30}" text-anchor="middle" font-size="10.5" style="fill:var(--muted)">${unit}</text>`;
+  const defs = `<defs><pattern id="mhatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" style="fill:var(--surface);fill-opacity:.55"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--muted);stroke-width:1.1"/></pattern>
+    <linearGradient id="mleg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--pos);stop-opacity:${MAP_ALPHA}"/><stop offset=".5" style="stop-color:var(--surface);stop-opacity:1"/><stop offset="1" style="stop-color:var(--neg);stop-opacity:${MAP_ALPHA}"/></linearGradient></defs>`;
   const axH = slab ? 'B (x)' : (s === 'wx' ? 'L (y)' : 'B (x)'), axV = slab ? 'L (y)' : 'altura (z)';
-  const svg = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Mapa de cores: ${MAP_SURF[s].name}">${rects}${lines.join('')}${ext}${mark(best, 'máx')}${mark(worst, 'mín')}${leg}
+  const svg = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Mapa de cores: ${MAP_SURF[s].name}">${defs}<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${wpx.toFixed(1)}" height="${hpx.toFixed(1)}" style="fill:var(--surface)"/>${img}${hatch.join('')}${hover}${ext}${mark(best, 'máx')}${mark(worst, 'mín')}${leg}
     <text x="${cx}" y="${Hh - 8}" text-anchor="middle" font-size="12" style="fill:var(--muted)">${axH}</text>
     <text transform="translate(14 ${Hh / 2}) rotate(-90)" text-anchor="middle" font-size="12" style="fill:var(--muted)">${axV}</text></svg>`;
   return { svg, max: best.v, min: worst.v, unit };
+}
+
+/* ----- região de dimensionamento: fora dos nós parede-laje (coordenadas em valor absoluto) ----- */
+function inDesign(s, q, G, p, Hc) {
+  const t = 1e-6, x = Math.abs(q[0]), y = Math.abs(q[1]), z = q[2], zOk = z >= p.ei / 2 - t && z <= Hc - p.es / 2 + t;
+  if (s === 'top') return x <= G.xf + t && y <= G.yf + t;
+  if (s === 'bot') return !((x > G.xf + t && x < G.xo - t && y <= G.yo + t) || (y > G.yf + t && y < G.yo - t && x <= G.xo + t));
+  if (s === 'wx') return zOk && y <= G.yf + t;
+  return zOk && x <= G.xf + t;
 }
 
 /* ----- diagramas ao longo das faixas centrais ----- */
@@ -1958,20 +2006,21 @@ function stripMembers(fe, A, view, kind, cIdx) {
   const pick = (s, pred, sortBy, kM, kQ) => {
     const idx = []; fe.surfNodes[s].forEach((i, j) => { if (pred(fe.nodes[i])) idx.push(j); });
     idx.sort((a, b) => sortBy(fe.nodes[fe.surfNodes[s][a]]) - sortBy(fe.nodes[fe.surfNodes[s][b]]));
-    return { pts: idx.map(j => fe.nodes[fe.surfNodes[s][j]]), val: idx.map(j => r.res[s][8 * j + (kind === 'M' ? kM : kQ)]) };
+    const pts = idx.map(j => fe.nodes[fe.surfNodes[s][j]]);
+    return { pts, val: idx.map(j => r.res[s][8 * j + (kind === 'M' ? kM : kQ)]), D: pts.map(q => inDesign(s, q, G, A.p, A.Hc)) };
   };
   if (view === 'B') {
     const t = pick('top', q => Math.abs(q[1]) < tol, q => q[0], 0, 3), w = pick('wx', q => Math.abs(q[1]) < tol, q => q[2], 1, 4), b = pick('bot', q => Math.abs(q[1]) < tol, q => q[0], 1, 4);
-    mems.push({ P: t.pts.map(q => [q[0], q[2]]), v: t.val, n: [0, 1], faces: [G.xf], lab: true }, { P: t.pts.map(q => [-q[0], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), n: [0, 1] });
-    mems.push({ P: w.pts.map(q => [q[0], q[2]]), v: w.val, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[0], q[2]]), v: w.val, n: [-1, 0] });
-    mems.push({ P: b.pts.map(q => [q[0], q[2]]), v: b.val, n: [0, -1], faces: [G.xf, G.xo], lab: true }, { P: b.pts.map(q => [-q[0], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), n: [0, -1] });
+    mems.push({ P: t.pts.map(q => [q[0], q[2]]), v: t.val, D: t.D, n: [0, 1], faces: [G.xf], lab: true }, { P: t.pts.map(q => [-q[0], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), D: t.D, n: [0, 1] });
+    mems.push({ P: w.pts.map(q => [q[0], q[2]]), v: w.val, D: w.D, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[0], q[2]]), v: w.val, D: w.D, n: [-1, 0] });
+    mems.push({ P: b.pts.map(q => [q[0], q[2]]), v: b.val, D: b.D, n: [0, -1], faces: [G.xf, G.xo], lab: true }, { P: b.pts.map(q => [-q[0], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), D: b.D, n: [0, -1] });
     return { mems, span: [Math.max(...b.pts.map(q => q[0])), A.Hc], axes: ['B (x)', 'z'] };
   }
   if (view === 'L') {
     const t = pick('top', q => Math.abs(q[0]) < tol, q => q[1], 1, 4), w = pick('wy', q => Math.abs(q[0]) < tol, q => q[2], 0, 3), b = pick('bot', q => Math.abs(q[0]) < tol, q => q[1], 0, 3);
-    mems.push({ P: t.pts.map(q => [q[1], q[2]]), v: t.val, n: [0, 1], faces: [G.yf], lab: true }, { P: t.pts.map(q => [-q[1], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), n: [0, 1] });
-    mems.push({ P: w.pts.map(q => [q[1], q[2]]), v: w.val, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[1], q[2]]), v: w.val, n: [-1, 0] });
-    mems.push({ P: b.pts.map(q => [q[1], q[2]]), v: b.val, n: [0, -1], faces: [G.yf, G.yo], lab: true }, { P: b.pts.map(q => [-q[1], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), n: [0, -1] });
+    mems.push({ P: t.pts.map(q => [q[1], q[2]]), v: t.val, D: t.D, n: [0, 1], faces: [G.yf], lab: true }, { P: t.pts.map(q => [-q[1], q[2]]), v: t.val.map(x => kind === 'V' ? -x : x), D: t.D, n: [0, 1] });
+    mems.push({ P: w.pts.map(q => [q[1], q[2]]), v: w.val, D: w.D, n: [1, 0], faces: [A.p.ei / 2, A.Hc - A.p.es / 2], fAxis: 1, lab: true }, { P: w.pts.map(q => [-q[1], q[2]]), v: w.val, D: w.D, n: [-1, 0] });
+    mems.push({ P: b.pts.map(q => [q[1], q[2]]), v: b.val, D: b.D, n: [0, -1], faces: [G.yf, G.yo], lab: true }, { P: b.pts.map(q => [-q[1], q[2]]), v: b.val.map(x => kind === 'V' ? -x : x), D: b.D, n: [0, -1] });
     return { mems, span: [Math.max(...b.pts.map(q => q[1])), A.Hc], axes: ['L (y)', 'z'] };
   }
   // planta na meia altura livre das paredes
@@ -1979,8 +2028,8 @@ function stripMembers(fe, A, view, kind, cIdx) {
   const zc = zs.reduce((b, z) => Math.abs(z - zt) < Math.abs(b - zt) ? z : b, zs[0]);
   const wx = pick('wx', q => Math.abs(q[2] - zc) < tol, q => q[1], 0, 3), wy = pick('wy', q => Math.abs(q[2] - zc) < tol, q => q[0], 1, 4);
   [1, -1].forEach(sx => [1, -1].forEach(sy => {
-    mems.push({ P: wx.pts.map(q => [sx * q[0], sy * q[1]]), v: wx.val.map(x => kind === 'V' && sy < 0 ? -x : x), n: [sx, 0], faces: [G.yf], fAxis: 1, lab: sx > 0 && sy > 0 });
-    mems.push({ P: wy.pts.map(q => [sx * q[0], sy * q[1]]), v: wy.val.map(x => kind === 'V' && sx < 0 ? -x : x), n: [0, sy], faces: [G.xf], fAxis: 0, lab: sx > 0 && sy > 0 });
+    mems.push({ P: wx.pts.map(q => [sx * q[0], sy * q[1]]), v: wx.val.map(x => kind === 'V' && sy < 0 ? -x : x), D: wx.D, n: [sx, 0], faces: [G.yf], fAxis: 1, lab: sx > 0 && sy > 0 });
+    mems.push({ P: wy.pts.map(q => [sx * q[0], sy * q[1]]), v: wy.val.map(x => kind === 'V' && sx < 0 ? -x : x), D: wy.D, n: [0, sy], faces: [G.xf], fAxis: 0, lab: sx > 0 && sy > 0 });
   }));
   return { mems, span: [G.xw, G.yw], axes: ['B (x)', 'L (y)'], zc, plan: true };
 }
@@ -1999,18 +2048,28 @@ function stripFigure(fe, A, view, kind, cIdx) {
     const ax = o.P.map(q => [X(q[0]), Y(q[1])]);
     const off = ax.map((a, i) => [a[0] + o.n[0] * o.v[i] * k, a[1] - o.n[1] * o.v[i] * k]);
     axes += `<polyline points="${ax.map(P2).join(' ')}" fill="none" style="stroke:var(--ink);stroke-width:1.6"/>`;
-    paths += `<path d="M${P2(ax[0])} L${off.map(P2).join(' L')} L${P2(ax[ax.length - 1])} Z" style="fill:${col};fill-opacity:.16;stroke:none"/><polyline points="${off.map(P2).join(' ')}" fill="none" style="stroke:${col};stroke-width:1.5;stroke-linejoin:round"/>`;
+    // divide em trechos: região de dimensionamento (cheio) e dentro dos nós (tracejado, claro)
+    let i0 = 0;
+    for (let i = 1; i <= o.P.length; i++) {
+      if (i < o.P.length && o.D[i] === o.D[i0]) continue;
+      // um trecho vai de i0 a i (inclui o ponto de transição para não deixar buraco)
+      const a = i0, b = Math.min(i, o.P.length - 1), inD = o.D[i0];
+      const seg = off.slice(a, b + 1), base = ax.slice(a, b + 1);
+      paths += `<path d="M${P2(base[0])} L${seg.map(P2).join(' L')} L${P2(base[base.length - 1])} Z" style="fill:${col};fill-opacity:${inD ? '.16' : '.05'};stroke:none"/><polyline points="${seg.map(P2).join(' ')}" fill="none" style="stroke:${col};stroke-width:${inD ? 1.5 : 1};stroke-linejoin:round${inD ? '' : ';stroke-dasharray:3 3;opacity:.6'}"/>`;
+      i0 = i;
+    }
     if (!o.lab) return;
     const along = o.fAxis != null ? o.fAxis : 0, pickI = [];
     (o.faces || []).forEach(f => { const i = o.P.findIndex(q => Math.abs(q[along] - f) < 1e-6); if (i >= 0) pickI.push(i); });
-    let ip = 0, ineg = 0; o.v.forEach((v, i) => { if (v > o.v[ip]) ip = i; if (v < o.v[ineg]) ineg = i; });
-    [ip, ineg].forEach(im => { if (!pickI.some(i => Math.abs(i - im) < 3)) pickI.push(im); });
+    let ip = -1, ineg = -1; o.v.forEach((v, i) => { if (!o.D[i]) return; if (ip < 0 || v > o.v[ip]) ip = i; if (ineg < 0 || v < o.v[ineg]) ineg = i; });
+    [ip, ineg].forEach(im => { if (im >= 0 && !pickI.includes(im)) pickI.push(im); });
     pickI.forEach(i => {
       const v = o.v[i]; if (Math.abs(v) < vmax * 0.02) return;
       const sg = v >= 0 ? 1 : -1, dx = o.n[0] * sg, dy = -o.n[1] * sg, hor = Math.abs(dx) > 0;
       let x = off[i][0] + dx * 6, y = off[i][1] + (hor ? 4 : (dy > 0 ? 14 : -6));
+      if (used.some(u => u[2] === i && u[3] === o)) return;
       while (used.some(u => Math.abs(u[0] - x) < 36 && Math.abs(u[1] - y) < 12)) y += (dy >= 0 ? 13 : -13);
-      used.push([x, y]);
+      used.push([x, y, i, o]);
       labels += `<text class="halo" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${hor ? (dx > 0 ? 'start' : 'end') : 'middle'}" font-size="12" font-family="var(--f-mono)" style="fill:var(--ink)">${fmt(v, 1)}</text>`;
     });
   });
@@ -2419,6 +2478,7 @@ if (typeof document !== 'undefined') {
   el('map-c').addEventListener('change', e => { view.mc = e.target.value; redraw(); });
   el('map-k').addEventListener('change', e => { view.mk = +e.target.value; redraw(); });
   ['M', 'V'].forEach(v => el('sk-' + v).addEventListener('click', () => { view.sk = v; redraw(); }));
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (lastM) drawFE(lastM); }); } catch (e) {}
   ['B', 'L', 'P'].forEach(v => el('sv-' + v).addEventListener('click', () => { view.sv = v; redraw(); }));
 
   // Armaduras: escolha de barras
@@ -2505,10 +2565,10 @@ if (typeof document !== 'undefined') {
     el('esf-txt').innerHTML = L.D.txt; el('esf-fig').innerHTML = L.svg; el('esf-table').innerHTML = esfTableHtml(L.D);
     const mp = mapFigure(r, A, m, view.ms, view.mc, view.mk), cn = mapComps(view.ms).find(c => c[0] === view.mc);
     el('map-fig').innerHTML = mp.svg;
-    el('map-cap').innerHTML = `${MAP_SURF[view.ms].name} · ${cn[1]} (${cn[2]}) · ${CASES.find(c => c[0] === view.mk)[1]}. Linhas tracejadas: faces dos apoios${view.ms === 'bot' ? ' e faces externas das paredes' : ''}. ${view.ms === 'top' || view.ms === 'bot' ? 'Vista em planta.' : 'Vista pelo lado de fora.'} Passe o mouse sobre um elemento para ver o valor.`;
+    el('map-cap').innerHTML = `${MAP_SURF[view.ms].name} · ${cn[1]} (${cn[2]}) · ${CASES.find(c => c[0] === view.mk)[1]}. Máximo e mínimo nodais na região de dimensionamento, entre as faces dos apoios: são os mesmos valores dos diagramas e da tabela de esforços. As faixas hachuradas ficam dentro dos nós parede-laje. ${view.ms === 'top' || view.ms === 'bot' ? 'Vista em planta.' : 'Vista pelo lado de fora.'} Passe o mouse sobre um elemento para ver o valor.`;
     el('strip-fig').innerHTML = stripFigure(r, A, view.sv, view.sk, view.mk);
     el('strip-cap').innerHTML = (view.sv === 'P' ? 'Planta das paredes na meia altura livre (flexão horizontal). ' : `Corte pela faixa central na direção ${view.sv} (${view.sv === 'B' ? 'y = 0' : 'x = 0'}), pelos eixos dos elementos. `) +
-      (view.sk === 'M' ? 'Momentos fletores em kN·m/m, desenhados do lado tracionado; rótulos nas faces dos apoios e no máximo.' : 'Esforços cortantes em kN/m; rótulos nas faces dos apoios e no máximo.') + ` Caso: ${CASES.find(c => c[0] === view.mk)[1]} (o mesmo do mapa).`;
+      (view.sk === 'M' ? 'Momentos fletores em kN·m/m, desenhados do lado tracionado.' : 'Esforços cortantes em kN/m.') + ' Rótulos nas faces dos apoios e nos extremos da região de dimensionamento; o trecho tracejado fica dentro dos nós parede-laje e não é usado no dimensionamento.' + ` Caso: ${CASES.find(c => c[0] === view.mk)[1]} (o mesmo do mapa).`;
     el('env-table').innerHTML = envTableHtml(A);
 
     // aba Armaduras
