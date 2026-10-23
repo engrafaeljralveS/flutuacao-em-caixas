@@ -244,6 +244,12 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 .armt tr.refrow td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .reftag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0 4px; margin-right: 4px; }
 .reftxt { color: var(--accent); font-weight: 600; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 9px 16px; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .55; cursor: progress; }
+.memopanel .panel-head { align-items: flex-start; margin-bottom: 0; }
+.memopanel .msg { max-width: 70ch; margin-top: 4px; }
+.memopanel .gnote:empty { display: none; }
 @media (max-width: 720px) { .verdicts.v3 { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 980px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -257,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.3 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.4 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -451,6 +457,14 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
     </aside>
 
     <main class="results">
+      <section class="panel memopanel" aria-label="Memorial de cálculo">
+        <div class="panel-head">
+          <div><h2 style="margin:0"><span class="n">M</span>Memorial de cálculo</h2>
+            <p class="msg">Flutuação (dados, cortes e fator de segurança), esforços (ações, diagramas de momento fletor e esforço cortante, envoltórias) e resumo das armaduras, com as barras adotadas nesta tela.</p></div>
+          <button class="btn primary" id="memo-full" type="button">Gerar memorial de cálculo (Word)</button>
+        </div>
+        <p class="gnote" id="memo-msg" role="status"></p>
+      </section>
       <div class="festatus" id="arm-status" role="status"><span class="dot"></span><span class="t"></span></div>
       <div class="warns" id="arm-warns" aria-live="polite"></div>
       <section aria-label="Resumo do dimensionamento"><div class="verdicts v4" id="arm-verd"></div></section>
@@ -2226,6 +2240,212 @@ function armShearHtml(A, chk, p, asFace) {
   return { html: h + '</tbody></table>', vMax: Math.max(...out) };
 }
 
+/* ---------- Memorial de cálculo completo (.docx): flutuação, esforços e armaduras ---------- */
+// SVG da tela -> SVG para impressão (cores fixas, fundo branco, fontes maiores)
+function printSvg(svg, fontScale = 1.3) {
+  const vb = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  const W = parseFloat(vb[1]), H = parseFloat(vb[2]);
+  let s = svg.replace(/font-size="([\d.]+)"/g, (a, n) => 'font-size="' + (parseFloat(n) * fontScale).toFixed(1) + '"');
+  s = s.replace(/var\(--([a-z-]+)\)/g, (a, k) => PRINT[k] || '#000000');
+  s = s.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif" ');
+  const end = s.indexOf('>') + 1;
+  s = s.slice(0, end) + '<style>.halo{paint-order:stroke;stroke:#ffffff;stroke-width:3.5px;stroke-linejoin:round}</style><rect width="100%" height="100%" fill="#ffffff"/>' + s.slice(end);
+  return { svg: s, W, H };
+}
+
+async function buildMemorialFull(D) {
+  const { m, fe, A, aux, sel, chk, RF, asMaxOk, reinf, sh } = D;
+  const p = m.p, z = m.z, P = A.P;
+  const imgs = [];
+  const addImg = async (o, scale = 2.2) => { const png = await svgToPng(o.svg, o.W, o.H, scale); imgs.push({ png, W: o.W, H: o.H }); return imgs.length; };
+  const C = { ink: '1b2830', muted: '566872', accent: '1d5f8a', line: 'c5cfd3', head: 'e9eef0', ok: '1b7a4b', okbg: 'dcefe4', bad: 'b0372b', badbg: 'f6dfdb' };
+  const SZ = 16;   // 8 pt nas tabelas
+  // texto com subscrito: "A_s,ef" -> A + subscrito "s,ef"
+  const R = (t, o = {}) => String(t).split(/(_\{[^}]*\}|_[A-Za-z0-9,.]+)/).filter(x => x !== '').map(part => {
+    const sub = part.startsWith('_'), txt = sub ? part.replace(/^_\{?|\}$/g, '') : part;
+    return `<w:r><w:rPr>${o.b ? '<w:b/>' : ''}${o.i ? '<w:i/>' : ''}${o.color ? `<w:color w:val="${o.color}"/>` : ''}<w:sz w:val="${o.sz || 18}"/>${sub ? '<w:vertAlign w:val="subscript"/>' : ''}</w:rPr><w:t xml:space="preserve">${xesc(txt)}</w:t></w:r>`;
+  }).join('');
+  const P_ = (t, o = {}) => wPar(R(t, o), o);
+  const H1 = t => wPar(R(t.toUpperCase(), { b: true, sz: 24, color: C.accent }), { before: 200, after: 80, keep: true });
+  const H2 = t => wPar(R(t, { b: true, sz: 19, color: C.ink }), { before: 120, after: 40, keep: true });
+  const txt = (t, o = {}) => wPar(R(t, Object.assign({ sz: 18 }, o)), { after: 60 });
+  const W0 = 10206;   // largura útil (twips)
+  // tabela genérica: cabeçalho + linhas; cada célula pode ser texto ou {t, b, color, fill, al}
+  const table = (widths, head, rows, o = {}) => {
+    const cell = (w, c, hd) => {
+      const v = typeof c === 'object' && c !== null ? c : { t: c };
+      return wCell(w, wPar(R(v.t == null ? '' : v.t, { sz: SZ, b: hd || v.b, color: v.color || (hd ? C.ink : undefined) }), { al: v.al || 'left' }), { bottom: C.line, fill: hd ? C.head : v.fill });
+    };
+    const rr = [wRow(head.map((h, i) => cell(widths[i], h, true)))].concat(rows.map(r => r.span ? wRow([wCell(W0, wPar(R(r.span, { sz: SZ, b: true, color: C.accent })), { span: widths.length, bottom: C.accent, fill: 'f4f7f8' })]) : wRow(r.map((c, i) => cell(widths[i], c)))));
+    return wTbl(widths, rr, { mar: 20, padx: 50, box: o.box }) + wPar('', { after: 80 });
+  };
+  const num = (v, d = 2) => ({ t: fmt(v, d), al: 'right' });
+  const imgRun = (idx, cx) => {
+    const im = imgs[idx - 1], cy = Math.round(cx * im.H / im.W);
+    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${idx}" name="Figura ${idx}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${idx}" name="fig${idx}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg${idx}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+  };
+  const figure = (idx, caption, frac = 1) => wPar(imgRun(idx, Math.round(W0 * 635 * frac)), { al: 'center', keep: true }) + wPar(R(caption, { sz: 16, i: true, color: C.muted }), { al: 'center', after: 120 });
+  const figPair = (a, b, ca, cb) => {
+    const w = Math.round((W0 / 2 - 120) * 635);
+    const c = (idx, cap) => wCell(W0 / 2, wPar(imgRun(idx, w), { al: 'center' }) + wPar(R(cap, { sz: 15, i: true, color: C.muted }), { al: 'center', after: 60 }), { va: 'top' });
+    return wTbl([W0 / 2, W0 / 2], [wRow([c(a, ca), c(b, cb)])], { mar: 0, padx: 40 }) + wPar('', { after: 80 });
+  };
+  const kv = items => {   // tabela de 4 colunas: rótulo | valor | rótulo | valor
+    const rows = [];
+    for (let i = 0; i < items.length; i += 2) {
+      const a = items[i], b = items[i + 1] || ['', ''];
+      rows.push([{ t: a[0], color: C.muted }, { t: a[1], b: true, al: 'right' }, { t: b[0], color: C.muted }, { t: b[1], b: true, al: 'right' }]);
+    }
+    const cell = (w, v) => wCell(w, wPar(R(v.t, { sz: SZ, b: v.b, color: v.color }), { al: v.al || 'left' }), { bottom: C.line });
+    return wTbl([2900, 2203, 2900, 2203], rows.map(r => wRow(r.map((v, i) => cell([2900, 2203, 2900, 2203][i], v)))), { mar: 16, padx: 50 }) + wPar('', { after: 80 });
+  };
+
+  const body = [];
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  let ver = ''; try { const mm = document.querySelector('.eyebrow').textContent.match(/v\d+(\.\d+)*/); if (mm) ver = mm[0]; } catch (e) {}
+  body.push(wPar(R('MEMÓRIA DE CÁLCULO', { b: true, sz: 32, color: C.ink }), { after: 20 }));
+  body.push(wPar(R('Caixa enterrada de concreto armado: flutuação, esforços e armaduras', { sz: 22, color: C.muted }), { after: 40 }));
+  body.push(wPar(R(`Dimensões internas ${fmt(p.B)} × ${fmt(p.L)} m, altura livre ${fmt(p.H)} m · ${hoje} · aplicativo Flutuação em Caixas ${ver}`, { sz: 17, color: C.muted }), { after: 160 }));
+
+  /* ===== 1. Flutuação ===== */
+  body.push(H1('1. Verificação à flutuação'));
+  body.push(H2('1.1 Dados de entrada'));
+  body.push(kv([
+    ['Dimensões internas B × L × H', `${fmt(p.B)} × ${fmt(p.L)} × ${fmt(p.H)} m`], ['Dimensões externas B_ext × L_ext', `${fmt(m.Bext)} × ${fmt(m.Lext)} m`],
+    ['Espessura das paredes e_p', `${fmt(p.ep)} m`], ['Laje de fundo e_i · laje de topo e_s', `${fmt(p.ei)} · ${fmt(p.es)} m`],
+    ['Aba da laje de fundo b_a', `${fmt(p.ba)} m`], ['Abertura na laje de topo', m.vol.openArea > 0 ? `${fmt(m.vol.boE)} × ${fmt(m.vol.loE)} m` : 'sem abertura'],
+    ['Cota do topo da laje · da base', `${fz(z.topTop)} · ${fz(z.base)} m`], ['Peso específico do concreto γ_c', `${fmt(p.gc, 1)} kN/m³`],
+    ['Solo seco γ_d · saturado γ_sat', `${fmt(p.gd, 1)} · ${fmt(p.gsat, 1)} kN/m³`], ['Ângulo de atrito φ · coesão c', `${fmt(p.phi, 1)}° · ${fmt(p.c, 1)} kPa`],
+    ['Nível d\'água z_w', `${fz(p.zw)} m`], ['Rebaixo na etapa construtiva z_r', p.zr != null ? `${fz(p.zr)} m` : 'sem rebaixo'],
+    ['Divisores: concreto · solo sobre a aba', `${fmt(p.fc, 2)} · ${fmt(p.fs, 2)}`], ['Divisores: solo sobre a laje · adicional', `${fmt(p.fst, 2)} · ${fmt(p.fa, 2)}`]
+  ]));
+  body.push(H2('1.2 Seções e ações atuantes'));
+  const iC = await addImg(memorialSvg(m, false)), iO = await addImg(memorialSvg(m, true));
+  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: pesos, empuxo lateral e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
+  body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba, empuxo lateral e subpressão.', 0.86));
+  body.push(H2('1.3 Fator de segurança'));
+  const stageRows = (title, st) => {
+    const rows = [{ span: title }];
+    st.parts.forEach(x => rows.push(x.incl ? [plainText(x.label), num(x.W, 1), { t: '÷ ' + fmt(x.div, 2), al: 'right' }, num(x.W / x.div, 1)] : [{ t: plainText(x.label), color: C.muted }, { t: '—', al: 'right', color: C.muted }, '', { t: 'não considerada', al: 'right', color: C.muted }]));
+    rows.push([{ t: 'Resistência R', b: true }, '', '', { t: fmt(st.R, 1), b: true, al: 'right' }]);
+    rows.push([`Subpressão U = u × A (N.A. em ${fz(st.sub.zw)} m)`, '', { t: `${fmt(st.sub.u, 1)} × ${fmt(st.sub.A)}`, al: 'right' }, num(st.sub.U, 1)]);
+    const okS = st.status === 'ok', fill = st.status === 'ok' ? C.okbg : st.status === 'nok' ? C.badbg : undefined;
+    rows.push(st.FS != null ? [{ t: 'FS = R ÷ U', b: true, fill }, { t: '', fill }, { t: `critério FS > ${fmt(p.fsmin, 2)}`, al: 'right', fill }, { t: `${fmt(st.FS, 2)} · ${okS ? 'atende' : 'não atende'}`, b: true, al: 'right', fill, color: okS ? C.ok : C.bad }]
+      : [{ t: 'Sem subpressão (U = 0): FS não se aplica', b: true }, '', '', '']);
+    return rows;
+  };
+  body.push(table([4806, 1700, 1900, 1800], ['Parcela', 'Peso (kN)', 'Divisor', 'Resistência (kN)'], stageRows('Etapa construtiva (sem laje de topo)', m.constr).concat(stageRows('Etapa de operação (caixa completa)', m.oper))));
+
+  /* ===== 2. Esforços ===== */
+  body.push(H1('2. Esforços solicitantes (elementos finitos)'));
+  body.push(H2('2.1 Modelo'));
+  body.push(txt(`Modelo tridimensional da caixa pela superfície média de lajes e paredes, em ¼ (simetria em x = 0 e y = 0), com elementos de casca de 4 nós (placa MITC4 e membrana com modos incompatíveis). Malha de até ${fmt(p.hm, 1)} cm, refinada junto às ligações: ${fmt(fe.stats.nElem, 0)} elementos e ${fmt(fe.stats.nEq, 0)} equações. Concreto E_cs = ${fmt(P.Ecs / 1000, 1)} GPa, ν = 0,2. Laje de fundo e aba sobre molas de Winkler k_v = ${fmt(p.kv, 0)} kN/m³, só de compressão. Esforços nos nós por recuperação SPR; momentos de dimensionamento de Wood-Armer.`));
+  body.push(txt(`Equilíbrio vertical (característica g + q): soma das reações ${fmt(A.R, 2)} kN; cargas ${fmt(A.Fz, 2)} kN. Pressão máxima no solo ${fmt(A.pMax, 1)} kPa; recalque máximo ${fmt(A.wMax, 2)} mm.` + (A.lifted > 0 ? ` Em alguma combinação ELU, ${A.lifted} de ${A.nSpring} molas foram desligadas por tração.` : '')));
+  body.push(H2('2.2 Ações características'));
+  const pg = aux.pg, dw = aux.dw, rowsAct = [
+    { span: 'Cargas verticais (kN/m²)' },
+    ['Laje de topo: peso próprio + solo', { t: `${fmt(aux.qtSelf, 2)} + ${fmt(aux.qtSoil, 2)}`, al: 'right' }, num(aux.qtg), 'permanente'],
+    ['Laje de fundo: peso próprio', '', num(aux.qbSelf), 'permanente'],
+    ['Subpressão na base (para cima)', `u em ${fz(z.base)} m`, num(aux.uBase), 'permanente'],
+    ...(p.ba > 0 ? [['Solo sobre a aba', `σ_v em ${fz(z.botTop)} m`, num(aux.qAba), 'permanente']] : []),
+    ['Paredes: peso próprio (kN/m de altura)', '', num(aux.wallW), 'permanente'],
+    ['Sobrecarga no terreno q', 'topo e aba', num(p.q), 'variável'],
+    { span: `Pressão lateral nas paredes (kPa), ${aux.k0 ? 'K_0 = 1 − sen φ' : 'K_a'} = ${fmt(aux.K, 3)}` },
+    ['Eixo da laje de topo', `z = ${fz(-aux.dA)} m`, num(pg(aux.dA)), 'solo + água'],
+    ...(dw > aux.dA && dw < aux.dB ? [['Nível d\'água', `z = ${fz(-dw)} m`, num(pg(dw)), 'solo + água']] : []),
+    ['Eixo da laje de fundo', `z = ${fz(-aux.dB)} m`, num(pg(aux.dB)), 'solo + água'],
+    ['Sobrecarga lateral K · q', 'constante', num(aux.pqL), 'variável']
+  ];
+  body.push(table([4306, 2300, 1600, 2000], ['Ação', 'Posição', 'Valor', 'Natureza'], rowsAct));
+  body.push(txt(`Combinações: ELU com cada ação permanente multiplicada por 1,0 ou γ_g = ${fmt(p.gg, 2)} e cada parcela da sobrecarga (vertical e lateral) por 0 ou γ_q = ${fmt(p.gq, 2)}, nas 16 combinações; ELS frequente g + ψ_1 q, com ψ_1 = ${fmt(p.psi1, 2)}.`));
+  body.push(H2('2.3 Diagramas de momento fletor e esforço cortante'));
+  body.push(txt('Combinação ELU com todas as ações majoradas, pelas faixas centrais (eixos dos elementos). Momentos em kN·m/m desenhados do lado tracionado; cortantes em kN/m. Os trechos tracejados ficam dentro dos nós parede-laje e não entram no dimensionamento.', { color: C.muted }));
+  const strips = [['B', 'M'], ['B', 'V'], ['L', 'M'], ['L', 'V'], ['P', 'M'], ['P', 'V']];
+  const sIdx = [];
+  for (const [v, k] of strips) sIdx.push(await addImg(printSvg(stripFigure(fe, A, v, k, 15)), 1.8));
+  const sName = { B: 'corte B (y = 0)', L: 'corte L (x = 0)', P: 'planta das paredes, meia altura' };
+  let fig = 3;
+  for (let i = 0; i < strips.length; i += 2) {
+    body.push(figPair(sIdx[i], sIdx[i + 1], `Figura ${fig} · Momento fletor, ${sName[strips[i][0]]}`, `Figura ${fig + 1} · Esforço cortante, ${sName[strips[i][0]]}`));
+    fig += 2;
+  }
+  body.push(H2('2.4 Esforços de dimensionamento'));
+  const envRows = [];
+  A.groups.forEach(g => {
+    envRows.push({ span: `${g.name} · h = ${fmt(g.h * 100, 0)} cm` });
+    A.rows.filter(r => r.group === g.key).forEach(r => {
+      const shr = A.shear.find(v => r.key.startsWith(v.key + '-'));
+      envRows.push([r.dir, r.face, num(r.Md), { t: (r.Nd > 0.005 ? '+' : '') + fmt(r.Nd, 1), al: 'right' }, num(r.Mmax), num(r.Ms), r.side === 'int' ? num(shr ? shr.Vd : 0, 1) : '']);
+    });
+  });
+  body.push(table([1500, 2406, 1200, 1200, 1300, 1300, 1300], ['Armadura', 'Face tracionada', 'M_d (kN·m/m)', 'N_d (kN/m)', 'M_{d,máx}', 'M_ser', 'V_Sd (kN/m)'], envRows));
+  body.push(txt('Envoltória das 16 combinações ELU (Wood-Armer) nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
+
+  /* ===== 3. Armaduras ===== */
+  body.push(H1('3. Dimensionamento das armaduras (NBR 6118)'));
+  body.push(kv([
+    ['Concreto f_ck · γ_c', `${fmt(p.fck, 0)} MPa · ${fmt(p.gmc, 2)}`], ['Aço f_yk · γ_s', `${fmt(p.fyk, 0)} MPa · ${fmt(p.gms, 2)}`],
+    ['f_cd · f_yd', `${fmt(P.fcd * 10, 2)} · ${fmt(P.fyd * 10, 1)} MPa`], ['d′ (centro da barra à face)', `${fmt(p.dl, 1)} cm`],
+    ['Abertura limite w_{k,lim}', `${fmt(p.wlim, 2)} mm`], ['Seção de cálculo', 'b = 100 cm, h = espessura']
+  ]));
+  body.push(H2('3.1 Resumo das armaduras'));
+  const sumRows = [];
+  const status = bad => bad.length ? { t: bad.join('; '), color: C.bad, b: true } : { t: 'atende', color: C.ok, b: true };
+  A.groups.forEach(g => {
+    sumRows.push({ span: `${g.name} · h = ${fmt(g.h * 100, 0)} cm` });
+    A.rows.filter(r => r.group === g.key).forEach(r => {
+      const s = sel[r.key], c = chk[r.key], X = RF[r.key], bars = `ø ${fb(s.phi)} c/ ${fsp(s.s)}`;
+      if (!X) {
+        const bad = [];
+        if (!r.flex.ok) bad.push('x/d'); if (!c.okAs) bad.push('A_s'); if (!c.okW) bad.push('w_k'); if (!c.okPhi) bad.push('ø > h/8'); if (!c.okS) bad.push('s > s_{máx}'); if (!asMaxOk[r.key]) bad.push('A_s > 4 %');
+        sumRows.push([r.dir, r.face, bars, num(c.As), num(r.AsReq), num(c.c.wk, 3), status(bad)]);
+        return;
+      }
+      const k = X.c, F = r.ref.field, E = r.ref.edge, badF = [];
+      if (!F.flex.ok) badF.push('x/d'); if (!k.okAsF) badF.push('A_s'); if (!k.okWF) badF.push('w_k'); if (!c.okPhi) badF.push('ø > h/8'); if (!c.okS) badF.push('s > s_{máx}');
+      sumRows.push([r.dir, r.face + (r.ref.hidden ? ' (campo)' : ' (campo)'), bars, num(k.Ab), num(F.AsReq), num(k.cf.wk, 3), status(badF)]);
+      if (r.ref.hidden) return;
+      const badE = [];
+      if (!E.flex.ok) badE.push('x/d'); if (!k.okAsE) badE.push('A_s'); if (!k.okWE) badE.push('w_k'); if (!k.okPhiR) badE.push('ø do reforço'); if (!asMaxOk[r.key]) badE.push('A_s > 4 %');
+      const rb = X.bar && X.bar.phi > 0 ? `+ ø ${fb(X.bar.phi)} c/ ${fsp(X.bar.s)}` : 'sem reforço';
+      sumRows.push([{ t: 'reforço', color: C.accent, b: true }, `borda das 4 paredes (até ${fmt(r.ref.len, 0)} cm)`, { t: rb, color: C.accent, b: true }, num(k.At), num(E.AsReq), num(k.ce.wk, 3), status(badE)]);
+    });
+  });
+  body.push(table([1250, 2656, 1500, 1050, 1050, 900, 1800], ['Armadura', 'Face', 'Barras', 'A_s,ef (cm²/m)', 'A_s,nec (cm²/m)', 'w_k (mm)', 'Situação'], sumRows));
+  const rfTxt = ['pp', 'lp'].filter(t => reinf[t].on).map(t => {
+    const r = reinf[t], b = x => x.phi > 0 ? `ø ${fb(x.phi)} c/ ${fsp(x.s)}` : 'sem';
+    return `${t === 'pp' ? 'Parede–parede (quatro cantos, barras horizontais)' : 'Laje de fundo–parede (quatro bordas, barras verticais)'}: interna ${b(r.int)}, externa ${b(r.ext)}, até ${fmt(r.len, 0)} cm da face.`;
+  });
+  body.push(txt(rfTxt.length ? 'Armaduras de reforço adotadas, somadas à armadura da tabela na borda: ' + rfTxt.join(' ') : 'Sem armaduras de reforço.'));
+  body.push(H2('3.2 Cortante (lajes sem armadura transversal)'));
+  const shRows = A.shear.map(v => {
+    const As = sh.asFace(v.extKey), Rr = Arm.vrd1(As, v.h, p.dl, P), ratio = v.Vd / Rr.V;
+    return [v.el, v.dir, num(v.Vd, 1), num(Rr.rho1 * 100, 3), num(Rr.V, 1), num(ratio, 2), ratio <= 1 + 1e-9 ? { t: 'dispensa estribos', color: C.ok, b: true } : { t: 'não atende', color: C.bad, b: true }];
+  });
+  body.push(table([2606, 1700, 1100, 1000, 1200, 1000, 1600], ['Elemento', 'Direção', 'V_Sd (kN/m)', 'ρ_1 (%)', 'V_Rd1 (kN/m)', 'V_Sd ÷ V_Rd1', 'Situação'], shRows));
+  body.push(H2('3.3 Conclusão'));
+  const nBad = D.verd.n - D.verd.nFlex + (D.verd.wMax > p.wlim + 1e-9 ? 1 : 0) + (D.verd.vMax > 1 + 1e-9 ? 1 : 0) + (D.verd.n - D.verd.nDet);
+  body.push(txt(nBad === 0
+    ? `Todas as verificações atendem: flexão (${D.verd.nFlex}/${D.verd.n} faces), fissuração (w_{k,máx} = ${fmt(D.verd.wMax, 3)} mm ≤ ${fmt(p.wlim, 2)} mm), cortante (V_Sd/V_Rd1 máximo = ${fmt(D.verd.vMax, 2)}) e detalhamento (${D.verd.nDet}/${D.verd.n}).`
+    : `Há verificações que não atendem: flexão ${D.verd.nFlex}/${D.verd.n}, fissuração w_{k,máx} = ${fmt(D.verd.wMax, 3)} mm (limite ${fmt(p.wlim, 2)} mm), cortante V_Sd/V_Rd1 máximo = ${fmt(D.verd.vMax, 2)}, detalhamento ${D.verd.nDet}/${D.verd.n}. Ajuste as armaduras ou as espessuras antes de usar estes resultados.`, { b: true, color: nBad === 0 ? C.ok : C.bad }));
+  body.push(wPar(R('Cálculo preliminar, gerado automaticamente. Coeficientes, hipóteses hidráulicas, parâmetros do solo e o detalhamento (ancoragem, emendas, cantos) precisam ser validados pelo responsável técnico antes de uso em projeto executivo.', { sz: 15, i: true, color: C.muted }), { before: 120 }));
+
+  const sect = '<w:sectPr><w:footerReference w:type="default" r:id="rIdFt"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="400" w:footer="400" w:gutter="0"/></w:sectPr>';
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body.join('')}${sect}</w:body></w:document>`;
+  const footer = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:t xml:space="preserve">Memória de cálculo · caixa enterrada · página </w:t></w:r><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:color w:val="566872"/><w:sz w:val="15"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`;
+  const NS = 'http://schemas.openxmlformats.org/';
+  const rels = imgs.map((_, i) => `<Relationship Id="rIdImg${i + 1}" Type="${NS}officeDocument/2006/relationships/image" Target="media/fig${i + 1}.png"/>`).join('');
+  const files = [
+    { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${NS}package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>` },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rId1" Type="${NS}officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>` },
+    { name: 'word/_rels/document.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}package/2006/relationships"><Relationship Id="rIdSt" Type="${NS}officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFt" Type="${NS}officeDocument/2006/relationships/footer" Target="footer1.xml"/>${rels}</Relationships>` },
+    { name: 'word/styles.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:lang w:val="pt-BR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:before="0" w:after="0" w:line="252" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>` },
+    { name: 'word/footer1.xml', data: footer },
+    { name: 'word/document.xml', data: doc }
+  ].concat(imgs.map((im, i) => ({ name: `word/media/fig${i + 1}.png`, data: im.png })));
+  return zipStore(files);
+}
+
 /* ---------- Aba Esforços: diagramas das ações (valores característicos) ---------- */
 const ESF = [
   { key: 'solo', name: 'Empuxo do solo', tag: 'paredes · efetivo' },
@@ -2597,6 +2817,29 @@ if (typeof document !== 'undefined') {
     saveRf(); if (lastM) drawFE(lastM);
   });
 
+  // Memorial de cálculo completo (Word)
+  el('memo-full').addEventListener('click', async () => {
+    const btn = el('memo-full'), msg = el('memo-msg'), lab = btn.textContent;
+    if (!lastDesign) { msg.textContent = 'Aguarde o cálculo dos esforços terminar.'; return; }
+    btn.disabled = true; btn.textContent = 'Gerando memorial…'; msg.textContent = '';
+    try {
+      const bytes = await buildMemorialFull(lastDesign);
+      const name = 'memorial-caixa-enterrada-' + new Date().toISOString().slice(0, 10) + '.docx';
+      let done = false;
+      try {
+        const dl = window.claude && await window.claude.use('downloads');
+        if (dl) { await dl.save({ filename: name, data: bytes }); done = true; msg.textContent = 'Memorial gerado: ' + name; }
+      } catch (e) { if (e && e.code === 'declined') { done = true; msg.textContent = 'Download cancelado.'; } }
+      if (!done) {
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        msg.textContent = 'Memorial gerado: ' + name;
+      }
+    } catch (e) { console.error(e); msg.textContent = 'Não foi possível gerar o memorial neste navegador.'; }
+    btn.disabled = false; btn.textContent = lab;
+  });
+
   // Armaduras: escolha de barras
   el('arm-table').addEventListener('change', e => {
     const t = e.target; if (!t.dataset || !t.dataset.k) return;
@@ -2617,7 +2860,7 @@ if (typeof document !== 'undefined') {
   el('esf-reset').addEventListener('click', () => resetKeys(ESF_KEYS));
 
   /* ----- Análise por elementos finitos (em segundo plano) ----- */
-  let worker = null, reqId = 0, feTimer = null, lastM = null;
+  let worker = null, reqId = 0, feTimer = null, lastM = null, lastDesign = null;
   const fe = { key: null, res: null, aux: null, busyKey: null, err: null };
   const FE_SYNC = FEengine();
   try {
@@ -2724,6 +2967,9 @@ if (typeof document !== 'undefined') {
     if (p.bo > 0 && p.lo > 0) wa.push('Há abertura na laje de topo: detalhe a armadura de reforço em volta dela à parte.');
     el('arm-warns').innerHTML = wa.map(t => `<p>${t}</p>`).join('');
     el('arm-table').innerHTML = armTableHtml(A, sel, chk, asMaxOk, RF);
+    lastDesign = { m, fe: r, A, aux: fe.aux, sel, chk, RF, asMaxOk, reinf: JSON.parse(JSON.stringify(reinf)), sh: { asFace: asEdge },
+      verd: { n: A.rows.length, nFlex: A.rows.filter(okFlexRow).length, wMax: Math.max(...A.rows.map(wkRow)), vMax: sh.vMax, nDet: A.rows.filter(rw => chk[rw.key].okPhi && chk[rw.key].okS && asMaxOk[rw.key] && (!RF[rw.key] || RF[rw.key].c.okPhiR)).length } };
+    el('memo-full').disabled = !!fe.busyKey;
     el('arm-shear').innerHTML = sh.html;
   }
 
