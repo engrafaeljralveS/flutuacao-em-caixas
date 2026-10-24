@@ -32,5 +32,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v3.6**: prisma de solo (cunha com o ângulo φ, da face superior da laje inferior até o terreno, nas quatro faces) na verificação à flutuação da etapa de operação, com divisor próprio (1,30) e opção de considerar ou não; divisor do solo sobre a aba passa a 1,10.
 - **v3.7**: etapa construtiva com escavação aberta: só o peso das paredes e da laje inferior (sem solo sobre a aba).
 - **v3.8**: correções da revisão: aba na área de subpressão (solo sobre a laje e a aba com γsat), etapa construtiva no modelo de elementos finitos e na envoltória, empuxo do desenho com o mesmo K dos esforços, peso das paredes sem sobreposição, N.A. acima do terreno nas cargas, orientação de ψ1 e de estanqueidade.
+- **v3.9**: subpressão líquida na aba: coluna d'água inteira sob a área interna às paredes e, na aba, só a espessura dela (a água sobre a aba equilibra o restante); solo sobre a aba com γ′; etapa construtiva com a escavação alagada até o N.A. (água sobre a aba e na face externa das paredes também no modelo de elementos finitos).
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.

@@ -36,15 +36,15 @@ const ok = (c, msg) => console.log((c ? '  OK   ' : '  FALHA ') + msg);
   ok(Math.abs(-wallMid / 3.3333 - 1) < 0.02, `meio da parede ${(-wallMid).toFixed(3)} (ref. 3,333)`);
   ok(Math.abs(wallFace / 0.7167 - 1) < 0.03, `parede na face da laje ${wallFace.toFixed(3)} (ref. 0,717)`);
 }
-// 3) Flutuação: conferência manual (aba na subpressão, solo sobre a laje e a aba com γsat, prisma com γ′)
+// 3) Flutuação: conferência manual (coluna inteira sob a área interna, só e_i na aba; solo sobre a laje com γsat, sobre a aba e no prisma com γ′)
 {
   const m = Calc.compute(Object.assign({}, DEFAULTS));
-  const Binf = 2.9, Linf = 3.3, Aaba = Binf * Linf - 2.5 * 2.9, U = 10 * 1.0 * Binf * Linf;
+  const Binf = 2.9, Linf = 3.3, Aaba = Binf * Linf - 2.5 * 2.9, U = 10 * 1.0 * 2.5 * 2.9 + 10 * 0.2 * Aaba;
   const tg = Math.tan(Math.PI / 6), h = 2.8, ring = t => 2 * t * tg * (Binf + Linf) + 4 * (t * tg) ** 2;
   let Wp = 0; const n = 20000; for (let i = 0; i < n; i++) { const t = (i + 0.5) * h / n; Wp += ring(t) * h / n * (t < 0.8 ? 9 : 17); }
-  const Rc = (105 + 47.85) / 1.1, Ro = (105 + 47.85 + 36.25 + 2.5 * 2.9 * 0.5 * 17 + Aaba * (2.0 * 17 + 0.8 * 19)) / 1.1 + Wp / 1.3;
+  const Rc = (105 + 47.85) / 1.1, Ro = (105 + 47.85 + 36.25 + 2.5 * 2.9 * 0.5 * 17 + Aaba * (2.0 * 17 + 0.8 * 9)) / 1.1 + Wp / 1.3;
   console.log('3) Flutuação');
-  ok(Math.abs(m.sub.U - U) < 1e-6, `subpressão em toda a laje inferior: U = ${m.sub.U.toFixed(2)} kN (manual ${U.toFixed(2)})`);
+  ok(Math.abs(m.sub.U - U) < 1e-6, `subpressão (interna + aba líquida): U = ${m.sub.U.toFixed(2)} kN (manual ${U.toFixed(2)})`);
   ok(Math.abs(m.constr.FS - Rc / U) < 1e-3, `FS construtiva ${m.constr.FS.toFixed(3)} (manual ${(Rc / U).toFixed(3)})`);
   ok(Math.abs(m.oper.FS - Ro / U) < 2e-3, `FS operação ${m.oper.FS.toFixed(3)} (manual ${(Ro / U).toFixed(3)})`);
 }
@@ -60,7 +60,8 @@ const ok = (c, msg) => console.log((c ? '  OK   ' : '  FALHA ') + msg);
   const cc = R1.rc.results[R1.rc.results.length - 1];
   ok(Math.abs(cc.R - cc.Fz) / Math.abs(cc.Fz) < 1e-6, `equilíbrio, etapa construtiva: reações ${cc.R.toFixed(2)} kN = cargas ${cc.Fz.toFixed(2)} kN`);
   const wall = 2 * (2.3 + 2.7) * 0.2 * 25 * 2.1, top = 13.5 * 2.3 * 2.7 + 13.5 * 0.1 * 2 * (2.3 + 2.7);
-  ok(Math.abs(cc.Fz - (wall + 5 * 9.57 - 10 * 9.57)) < 0.5, `cargas da etapa construtiva = paredes (altura H) + laje de fundo − subpressão = ${(wall + 5 * 9.57 - 10 * 9.57).toFixed(2)} kN`);
+  const qC = wall + 5 * 9.57 - 10 * 9.57 + 8 * (9.57 - 2.5 * 2.9);
+  ok(Math.abs(cc.Fz - qC) < 0.5, `cargas da etapa construtiva = paredes (altura H) + laje de fundo − subpressão + água sobre a aba = ${qC.toFixed(2)} kN`);
   const q2 = JSON.parse(JSON.stringify(inp)); q2.forEach(x => { x.geo.h = 0.075; });
   const A2 = Arm.post(m, run(q2).r, aux);
   const dif = Math.max(...A.rows.map((x, i) => Math.abs(x.Mmax - A2.rows[i].Mmax) / Math.max(1, A2.rows[i].Mmax)));

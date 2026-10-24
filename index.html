@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.8 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.9 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -338,8 +338,8 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
           <li>Sem sobrecargas no terreno ou sobre a laje de topo (o valor de 4 kN/m² fica para etapa posterior).</li>
           <li>Sem água no interior da caixa, drenagem, alívio de pressão ou escoamento transitório.</li>
           <li>Sem atrito lateral nem resistência passiva do solo.</li>
-          <li>A subpressão age em toda a laje inferior, com a aba: A = B<sub>inf</sub> × L<sub>inf</sub>. O solo sobre a laje de topo e sobre a aba entra com o peso total (γ<sub>sat</sub> abaixo do N.A.); o prisma de solo, fora dessa área, com γ′.</li>
-          <li>Etapa construtiva: escavação aberta e drenada, sem solo nem água sobre a aba e junto às paredes; a subpressão sob a laje usa o N.A. da etapa (com o rebaixo, se houver).</li>
+          <li>Subpressão: coluna d'água inteira sob a área interna às paredes (B<sub>ext</sub> × L<sub>ext</sub>); na aba, só a parte da coluna dentro da espessura dela (mín(h; e<sub>i</sub>)), porque a água sobre a aba equilibra o restante. Solo sobre a laje de topo com γ<sub>sat</sub> abaixo do N.A.; sobre a aba e no prisma, com γ′.</li>
+          <li>Etapa construtiva: escavação aberta, sem solo junto às paredes e sobre a aba, com água até o N.A. da etapa (com o rebaixo, se houver).</li>
           <li>O desenho explica as premissas e não é resultado de dimensionamento.</li>
         </ul>
       </details>
@@ -432,7 +432,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
           <li>Laje de fundo e aba sobre molas de Winkler (k<sub>v</sub> × área de influência de cada nó), só de compressão: as molas tracionadas são desligadas e o cálculo se repete, em cada combinação.</li>
           <li>A pressão lateral age nas paredes entre os eixos das lajes; a parcela sobre as meias espessuras das lajes entra como carga de linha nas bordas. A faixa da laje de topo além do eixo da parede entra como carga de linha no topo da parede. A abertura e a chaminé (peso no lugar do solo) entram no modelo; o empuxo sobre a chaminé, não.</li>
           <li>Validação: placa engastada (flecha e momento central dentro de 1 % de Timoshenko) e caixa longa contra o pórtico plano (momentos nas faces dentro de 1 %). O equilíbrio vertical é conferido em cada análise.</li>
-          <li>Etapa construtiva: mesmo modelo, com a laje de topo sem rigidez (paredes em balanço), sem solo, água ou sobrecarga nas paredes e na aba, e com a subpressão do N.A. da etapa (com o rebaixo). Peso próprio e subpressão entram como ações separadas (1,0 ou γ<sub>g</sub> cada). Os esforços entram na envoltória do dimensionamento.</li>
+          <li>Etapa construtiva: mesmo modelo, com a laje de topo sem rigidez (paredes em balanço), sem solo ou sobrecarga nas paredes e na aba, e com a escavação alagada até o N.A. da etapa (com o rebaixo, se houver): subpressão na base, água sobre a aba e pressão hidrostática na face externa das paredes. Peso próprio e água entram como ações separadas (1,0 ou γ<sub>g</sub> cada). Os esforços entram na envoltória do dimensionamento.</li>
           <li>Peso das paredes no modelo só na altura livre H (o trecho dentro das lajes está no peso delas). Com o N.A. acima do terreno, a lâmina d'água entra nas cargas verticais e na pressão lateral.</li>
           <li>Não verifica: caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, carregamentos assimétricos.</li>
         </ul>
@@ -580,7 +580,7 @@ const Calc = (function () {
     const soilArea = Math.max(0, supArea - (chimH > 0 ? Math.min(chimOuter, supArea) : openArea));
     vol.soilArea = soilArea;
     const soloTopo = layer(p, z.topTop, soilArea, false);
-    const soloAba = layer(p, z.botTop, infArea - supArea, false);
+    const soloAba = layer(p, z.botTop, infArea - supArea, true);
     // Prisma de solo: cunha que parte da borda da laje inferior (com a aba), na cota da face superior
     // dela, e sobe até o terreno abrindo para fora com o ângulo φ (medido da vertical), nas quatro faces,
     // com os cantos. Fração saturada com γ′ = γsat − γw, como o solo sobre a aba.
@@ -598,8 +598,10 @@ const Calc = (function () {
 
     // Subpressão: A = área externa das paredes, sem a aba. Na etapa construtiva, o rebaixo do
     // lençol (ponteiras) limita o nível d'água à cota zr: vale o menor entre zw e zr.
-    const A = Binf * Linf;
-    const waterAt = zwLevel => { const h = Math.max(0, zwLevel - z.base); const u = p.gw * h; return { zw: zwLevel, h, u, A, U: u * A }; };
+    const A = Bext * Lext, Aaba = Binf * Linf - Bext * Lext;
+    // Subpressão: coluna inteira sob a área interna às paredes; na aba, só a parte da coluna dentro da
+    // espessura dela, porque a água sobre a aba (lençol ou escavação alagada) equilibra o restante.
+    const waterAt = zwLevel => { const h = Math.max(0, zwLevel - z.base); const u = p.gw * h, ha = Math.min(h, p.ei), Ua = p.gw * ha * Aaba; return { zw: zwLevel, h, u, A, Aaba, ha, Ua, U: u * A + Ua }; };
     const sub = waterAt(p.zw);
     const hasZr = p.zr != null && Number.isFinite(p.zr);
     const subC = waterAt(hasZr ? Math.min(p.zw, p.zr) : p.zw);
@@ -1017,7 +1019,7 @@ function FEengine() {
     lineLoad(F[3], topEdgeX, 1, [-L.Kq * g.es / 2, 0, 0]); lineLoad(F[3], topEdgeY, 0, [0, -L.Kq * g.es / 2, 0]);
     lineLoad(F[3], botEdgeX, 1, [-L.Kq * g.ei / 2, 0, 0]); lineLoad(F[3], botEdgeY, 0, [0, -L.Kq * g.ei / 2, 0]);
     // carga vertical total aplicada (1/4 da caixa), por componente
-    if (L.sepU) F.push(areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'bot' ? [0, 0, L.uBase] : null));
+    if (L.sepU) F.push(areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'bot' ? [0, 0, L.uBase - (inAba(e.c[0], e.c[1]) ? (L.qAbaW || 0) : 0)] : null));
     const Fz = F.map(Fv => { let s = 0; for (let i = 0; i < nn; i++) { const q = eq[6 * i + 2]; if (q >= 0) s += Fv[q]; } return s; });
 
     // ---- solução com molas (só compressão)
@@ -1191,20 +1193,21 @@ const Arm = (function () {
       geo: { Bc, Lc, Hc, ep: p.ep, es: p.es, ei: p.ei, ba: p.ba, bo: m.vol.openArea > 0 ? m.vol.boE : 0, lo: m.vol.openArea > 0 ? m.vol.loE : 0, chimH: m.vol.chimH || 0, h: p.hm / 100 },
       mat: { E: Math.round(P.Ecs * 1000), nu: 0.2 }, kv: p.kv, loads, combos
     };
-    // Etapa construtiva: sem laje de topo (elementos com rigidez desprezível), escavação aberta e drenada
-    // (sem solo, água ou sobrecarga nas paredes e na aba); peso próprio e subpressão como ações separadas.
+    // Etapa construtiva: sem laje de topo (elementos com rigidez desprezível), escavação aberta, sem solo
+    // nem sobrecarga nas paredes e na aba, alagada até o N.A. da etapa: água na face externa das paredes
+    // (componente 1) e sobre a aba, junto com a subpressão (componente 4); peso próprio no componente 0.
     const zwc = p.zr != null && Number.isFinite(p.zr) ? Math.min(p.zw, p.zr) : p.zw;
-    const uC = p.gw * Math.max(0, zwc - z.base);
-    const lc = Object.assign({}, loads, { K: 0, Kq: 0, gw: 0, cT: 0, qtSelf: 0, qtSoil: 0, qChim: 0, qAba: 0, q: 0, uBase: uC, sepU: true });
+    const uC = p.gw * Math.max(0, zwc - z.base), qAbaWC = p.gw * Math.max(0, zwc - z.botTop);
+    const lc = Object.assign({}, loads, { K: 0, Kq: 0, gw: p.gw, dw: -zwc, cT: 0, qtSelf: 0, qtSoil: 0, qChim: 0, qAba: 0, q: 0, uBase: uC, qAbaW: p.ba > 0 ? qAbaWC : 0, sepU: true });
     const cc = [];
-    for (let a = 0; a < 4; a++) cc.push({ f: [(a & 1) ? p.gg : 1, 0, 0, 0, (a & 2) ? p.gg : 1] });
-    cc.push({ f: [1, 0, 0, 0, 1] });
+    for (let a = 0; a < 4; a++) { const g = (a & 1) ? p.gg : 1, u = (a & 2) ? p.gg : 1; cc.push({ f: [g, u, 0, 0, u] }); }
+    cc.push({ f: [1, 1, 0, 0, 1] });
     const inpC = { geo: Object.assign({}, inp.geo, { noTop: true }), mat: inp.mat, kv: p.kv, loads: lc, combos: cc };
     const aux = Object.assign({}, loads, {
       Bc, Lc, Hc, cover, dAba, k0: !!p.k0, sh, uw, pg: d => sh(d) + uw(d), pqL: K * p.q,
       qtg: loads.qtSelf + loads.qtSoil, qAbaSoil: loads.qAba, ksB: 1, ksL: 1, kvLong: 1, kvShort: 1, Ecs: P.Ecs, wallWreal: p.gc * p.ep
     });
-    return { inp: [inp, inpC], aux: Object.assign(aux, { uC, zwc }) };
+    return { inp: [inp, inpC], aux: Object.assign(aux, { uC, zwc, qAbaWC: p.ba > 0 ? qAbaWC : 0 }) };
   }
 
   /* ----- pós-processamento: regiões de dimensionamento e envoltórias ----- */
@@ -1392,9 +1395,10 @@ function drawSection(m, oper) {
       const xa = sg > 0 ? X(m.Bext / 2) : X(-xe), xb = sg > 0 ? X(xe) : X(-m.Bext / 2);
       o.push(`<rect x="${f1(xa)}" y="${f1(Y(0))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(0))}" style="fill:var(--surface)"/>`);
       const xc = X(sg * xe);
+      if (zwD > z.base) o.push(`<rect x="${f1(xa)}" y="${f1(Y(wl))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(wl))}" style="fill:var(--water);opacity:.22"/>`);
       o.push(`<polyline points="${f1(xc)},${f1(Y(0))} ${f1(xc)},${f1(Y(z.base))} ${f1(X(sg * m.Binf / 2))},${f1(Y(z.base))}" style="fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:6 4"/>`);
     });
-    o.push(`<text class="halo" x="${f1(X(xe) - 4)}" y="${f1(Y(0) + 16)}" text-anchor="end" font-size="11" style="fill:var(--muted)">escavação drenada</text>`);
+    o.push(`<text class="halo" x="${f1(X(xe) - 4)}" y="${f1(Y(0) + 16)}" text-anchor="end" font-size="11" style="fill:var(--muted)">escavação</text>`);
   }
 
   // concreto
@@ -1663,7 +1667,7 @@ function weightsTable(m) {
       ${m.vol.chimH > 0 ? row('c', 'Chaminé da abertura (e = e<sub>p</sub>, até o terreno)', `(${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} − ${fmt(m.vol.boE)} × ${fmt(m.vol.loE)}) m² × ${fmt(m.vol.chimH)} m = ${fmt(m.vol.chim)} m³`, fmt(p.gc, 1), m.W.chim, 'chamine') : ''}
       <tr class="grp"><td colspan="6">Solo</td></tr>
       ${soilRows(m.soloTopo, m.vol.chimH > 0 ? 'Solo sobre a laje de topo (sem a área da chaminé)' : m.vol.openArea > 0 ? 'Solo sobre a laje de topo (sem a área da abertura)' : 'Solo sobre a laje de topo', 'soloTopo', false)}
-      ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', false)}
+      ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', true)}
       ${m.prisma.V > 0 ? row('s', `Prisma de solo (φ = ${fmt(p.phi, 1)}°, nas quatro faces)`, `h = ${fmt(m.prisma.h)} m, abertura h·tg φ = ${fmt(m.prisma.a)} m · V = ${fmt(m.prisma.V)} m³`, m.prisma.Vsat > 0 && m.prisma.Vdry > 0 ? `${fmt(p.gd, 1)} / ${fmt(m.prisma.gS, 1)}` : (m.prisma.Vsat > 0 ? fmt(m.prisma.gS, 1) : fmt(p.gd, 1)), m.prisma.W, 'prisma') : ''}
       ${m.prisma.V > 0 && m.prisma.Vdry > 0 ? sub('seco', `${fmt(m.prisma.Vdry)} m³`, fmt(p.gd, 1), m.prisma.Vdry * p.gd) : ''}
       ${m.prisma.V > 0 && m.prisma.Vsat > 0 ? sub('saturado, só a fração de solo (γ′)', `${fmt(m.prisma.Vsat)} m³`, fmt(m.prisma.gS, 1), m.prisma.Vsat * m.prisma.gS) : ''}
@@ -1677,9 +1681,9 @@ function rebaixoRows(m, r, sub) {
   return `<tr class="grp"><td colspan="4">Etapa construtiva: lençol freático rebaixado</td></tr>
       ${r('N.A. rebaixado z<sub>w,c</sub>', `mín(z<sub>w</sub>; z<sub>r</sub>) = mín(${fmt(p.zw)}; ${fmt(p.zr)})`, '—', `${fz(sc.zw)} m`)}
       ${r('Coluna d\'água h<sub>c</sub>', `z<sub>w,c</sub> − z<sub>base</sub> = (${fmt(sc.zw)}) − (${fmt(z.base)})${sc.h === 0 ? ' → sem coluna positiva, h<sub>c</sub> = 0' : ''}`, '—', `${fmt(sc.h)} m`)}
-      ${r('Volume da coluna A × h<sub>c</sub>', `${fmt(sc.A)} × ${fmt(sc.h)}`, '—', `${fmt(sc.A * sc.h)} m³`)}
+
       ${r('Pressão na base u<sub>c</sub>', `γ<sub>w</sub> × h<sub>c</sub> = ${fmt(p.gw, 1)} × ${fmt(sc.h)}`, fmt(p.gw, 1), `${fmt(sc.u, 1)} kPa`)}
-      ${r('Subpressão U<sub>c</sub>', `u<sub>c</sub> × A = ${fmt(sc.u, 1)} × ${fmt(sc.A)}  (= γ<sub>w</sub> × A × h<sub>c</sub>)`, fmt(p.gw, 1), `${fmt(sc.U, 1)} kN`, true)}
+      ${r('Subpressão U<sub>c</sub>', `u<sub>c</sub> × A + γ<sub>w</sub> × mín(h<sub>c</sub>; e<sub>i</sub>) × A<sub>aba</sub> = ${fmt(sc.u * sc.A, 1)} + ${fmt(sc.Ua, 1)}`, fmt(p.gw, 1), `${fmt(sc.U, 1)} kN`, true)}
       ${sub('alívio pelo rebaixo', `U − U<sub>c</sub> = ${fmt(sb.U, 1)} − ${fmt(sc.U, 1)} = ${fmt(sb.U - sc.U, 1)} kN`)}`;
 }
 
@@ -1690,15 +1694,17 @@ function subpressaoTable(m) {
   return `<table style="margin-top:18px">
     <thead><tr><th class="l">Subpressão${m.subC.rebaixo ? ' (etapa de operação)' : ' (vale para as duas etapas)'}</th><th class="l">Cálculo</th><th>γ (kN/m³)</th><th>Resultado</th></tr></thead>
     <tbody>
-      <tr class="grp"><td colspan="4">Área da subpressão: toda a laje inferior, com a aba</td></tr>
-      ${r('Largura B<sub>inf</sub>', `B + 2·e<sub>p</sub> + 2·b<sub>a</sub> = ${fmt(p.B)} + 2 × ${fmt(p.ep)} + 2 × ${fmt(p.ba)}`, '—', `${fmt(m.Binf)} m`)}
-      ${r('Comprimento L<sub>inf</sub>', `L + 2·e<sub>p</sub> + 2·b<sub>a</sub> = ${fmt(p.L)} + 2 × ${fmt(p.ep)} + 2 × ${fmt(p.ba)}`, '—', `${fmt(m.Linf)} m`)}
-      ${r('Área A', `B<sub>inf</sub> × L<sub>inf</sub> = ${fmt(m.Binf)} × ${fmt(m.Linf)}`, '—', `${fmt(sb.A)} m²`, true)}
+      <tr class="grp"><td colspan="4">Áreas: interna às paredes e aba</td></tr>
+      ${r('Área interna às paredes A', `B<sub>ext</sub> × L<sub>ext</sub> = ${fmt(m.Bext)} × ${fmt(m.Lext)}`, '—', `${fmt(sb.A)} m²`, true)}
+      ${r('Área da aba A<sub>aba</sub>', `B<sub>inf</sub> × L<sub>inf</sub> − A = ${fmt(m.Binf)} × ${fmt(m.Linf)} − ${fmt(sb.A)}`, '—', `${fmt(sb.Aaba)} m²`)}
       <tr class="grp"><td colspan="4">Coluna d'água e esforço de subpressão</td></tr>
       ${r('Coluna d\'água h', `z<sub>w</sub> − z<sub>base</sub> = (${fmt(p.zw)}) − (${fmt(z.base)})${sb.h === 0 ? ' → sem coluna positiva, h = 0' : ''}`, '—', `${fmt(sb.h)} m`)}
-      ${r('Volume da coluna A × h', `${fmt(sb.A)} × ${fmt(sb.h)}`, '—', `${fmt(sb.A * sb.h)} m³`)}
+
       ${r('Pressão na base u', `γ<sub>w</sub> × h = ${fmt(p.gw, 1)} × ${fmt(sb.h)}`, fmt(p.gw, 1), `${fmt(sb.u, 1)} kPa`)}
-      ${r('Subpressão U', `u × A = ${fmt(sb.u, 1)} × ${fmt(sb.A)}  (= γ<sub>w</sub> × A × h)`, fmt(p.gw, 1), `${fmt(sb.U, 1)} kN`, true)}
+      ${r('Sob a área interna às paredes', `u × A = ${fmt(sb.u, 1)} × ${fmt(sb.A)}`, fmt(p.gw, 1), `${fmt(sb.u * sb.A, 1)} kN`)}
+      ${r('Na aba (líquida)', `γ<sub>w</sub> × mín(h; e<sub>i</sub>) × A<sub>aba</sub> = ${fmt(p.gw, 1)} × ${fmt(sb.ha)} × ${fmt(sb.Aaba)}`, fmt(p.gw, 1), `${fmt(sb.Ua, 1)} kN`)}
+      ${sub('na aba', 'a água sobre a aba equilibra a coluna acima da face superior dela: sobra só a parcela da espessura e<sub>i</sub>')}
+      ${r('Subpressão U', `${fmt(sb.u * sb.A, 1)} + ${fmt(sb.Ua, 1)}`, '—', `${fmt(sb.U, 1)} kN`, true)}
       ${m.subC.rebaixo ? rebaixoRows(m, r, sub) : ''}
     </tbody></table>`;
 }
@@ -1731,7 +1737,7 @@ function stageCalc(title, st, m) {
     <thead><tr><th class="l">Parcela resistente</th><th>Peso (kN)</th><th>Divisor</th><th>Resist. (kN)</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td class="l">Resistência R</td><td></td><td></td><td class="num">${fmt(st.R, 1)}</td></tr>
-      <tr><td class="l">Subpressão U = u × A${sb.rebaixo ? ' (N.A. rebaixado)' : ''}</td><td></td><td class="num">${fmt(sb.u, 1)} × ${fmt(sb.A)}</td><td class="num">${fmt(sb.U, 1)}</td></tr>
+      <tr><td class="l">Subpressão U (interna + aba)${sb.rebaixo ? ' (N.A. rebaixado)' : ''}</td><td></td><td class="num">${fmt(sb.u * sb.A, 1)} + ${fmt(sb.Ua, 1)}</td><td class="num">${fmt(sb.U, 1)}</td></tr>
       ${fsRow}
     </tbody></table></div></div>`;
 }
@@ -1745,7 +1751,7 @@ function summaryHtml(m) {
     ${it('Externas B<sub>ext</sub> × L<sub>ext</sub>', `${fmt(m.Bext)} × ${fmt(m.Lext)} m`)}
     ${it('Laje inferior com aba B<sub>inf</sub> × L<sub>inf</sub>', `${fmt(m.Binf)} × ${fmt(m.Linf)} m`)}
     ${it('Altura total', `${fmt(m.Htot)} m`)}
-    ${it('Área de subpressão A = B<sub>inf</sub>·L<sub>inf</sub>', `${fmt(m.sub.A)} m²`)}
+    ${it('Área interna às paredes A = B<sub>ext</sub>·L<sub>ext</sub>', `${fmt(m.sub.A)} m²`)}
     ${it('Abertura na laje de topo b<sub>o</sub> × l<sub>o</sub>', m.vol.openArea > 0 ? `${fmt(Math.min(p.bo, m.Bext))} × ${fmt(Math.min(p.lo, m.Lext))} m (${fmt(m.vol.openArea)} m²)` : 'sem abertura')}
     ${it('Chaminé (externa × altura)', m.vol.chimH > 0 ? `${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} m, h = ${fmt(m.vol.chimH)} m` : 'sem chaminé')}
     <h3>Espessuras</h3>
@@ -1935,7 +1941,7 @@ function memorialDocXml(m, imgs) {
         : wRow([c(0, lab, { color: '8d9ea8' }), c(1, '—', { color: '8d9ea8' }), c(2, ''), c(3, 'não consid.', { color: '8d9ea8' })]));
     });
     rows.push(wRow([c(0, 'Resistência R', { b: true, fill: 'eef1f2' }), c(1, '', { fill: 'eef1f2' }), c(2, '', { fill: 'eef1f2' }), c(3, fmt(st.R, 1), { b: true, fill: 'eef1f2' })]));
-    rows.push(wRow([c(0, 'Subpressão U = u × A'), c(1, ''), c(2, `${fmt(sb.u, 1)} × ${fmt(sb.A)}`), c(3, fmt(sb.U, 1))]));
+    rows.push(wRow([c(0, 'Subpressão U (interna + aba)'), c(1, ''), c(2, `${fmt(sb.u * sb.A, 1)} + ${fmt(sb.Ua, 1)}`), c(3, fmt(sb.U, 1))]));
     const v = verd(st);
     rows.push(st.FS != null
       ? wRow([c(0, 'FS = R ÷ U', { b: true, fill: v[2] }), c(1, '', { fill: v[2] }), c(2, `${fmt(st.R, 1)} ÷ ${fmt(sb.U, 1)}`, { fill: v[2] }), c(3, fmt(st.FS, 2), { b: true, fill: v[2], color: v[1].slice(1) })])
@@ -1952,7 +1958,7 @@ function memorialDocXml(m, imgs) {
   const hoje = new Date().toLocaleDateString('pt-BR');
   const title = wPar(wRun('MEMÓRIA DE CÁLCULO · VERIFICAÇÃO À FLUTUAÇÃO', { b: true, sz: 22, color: '1b2830' }), { after: 10 }) +
     wPar(wRun(`Caixa enterrada de concreto armado, ${fmt(p.B)} × ${fmt(p.L)} m internos, altura livre ${fmt(p.H)} m · ${hoje}`, { sz: 14, color: '566872' }), { after: 60 });
-  const foot = wPar(wRun('Cálculo preliminar. FS = R ÷ U; critério FS > ' + fmt(p.fsmin, 2) + '. Subpressão em A = Binf × Linf (toda a laje inferior, com a aba), u = γw · (zw − cota da base). Resistência R = Σ (peso ÷ divisor). Solo sobre a laje e a aba com γsat abaixo do N.A.; prisma de solo com γ′. Etapa construtiva com escavação drenada. Desenho esquemático; o diagrama de empuxo não é resultado de dimensionamento.', { sz: 11, color: '566872', i: true }), { before: 50 });
+  const foot = wPar(wRun('Cálculo preliminar. FS = R ÷ U; critério FS > ' + fmt(p.fsmin, 2) + '. Subpressão U = u · A + γw · mín(h; ei) · Aaba: coluna inteira sob a área interna às paredes e, na aba, só a espessura dela (a água sobre a aba equilibra o restante); u = γw · (zw − cota da base). Resistência R = Σ (peso ÷ divisor). Solo sobre a laje de topo com γsat; sobre a aba e no prisma com γ′. Etapa construtiva com a escavação alagada até o N.A. Desenho esquemático; o diagrama de empuxo não é resultado de dimensionamento.', { sz: 11, color: '566872', i: true }), { before: 50 });
   const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="680" w:right="680" w:bottom="620" w:left="680" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr>';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${title}${fsTbl}${imgs2}${wPar('', { after: 40 })}${calcTbl}${wPar('', { after: 40 })}${inTbl}${foot}${sect}</w:body></w:document>`;
 }
@@ -2018,7 +2024,7 @@ function mapComps(s) {
 const CASES = [
   [15, 'ELU: todas as ações majoradas'], [19, 'ELS frequente (g + ψ₁ q)'], [20, 'Característica (g + q)'],
   [21, 'Só permanentes verticais (linear)'], [22, 'Só empuxo e água (linear)'], [23, 'Só sobrecarga vertical (linear)'], [24, 'Só sobrecarga lateral (linear)'],
-  [28, 'Etapa construtiva: ELU (peso e subpressão majorados)'], [29, 'Etapa construtiva: característica']
+  [28, 'Etapa construtiva: ELU (peso e água majorados)'], [29, 'Etapa construtiva: característica']
 ];
 function surfCoords(s, q) { return s === 'top' || s === 'bot' ? [q[0], q[1]] : s === 'wx' ? [q[1], q[2]] : [q[0], q[2]]; }
 // sinais que trocam ao espelhar em h (1ª coordenada) e em v (2ª, só lajes)
@@ -2385,14 +2391,16 @@ async function buildMemorialFull(D) {
   ]));
   body.push(H2('1.2 Seções e ações atuantes'));
   const iC = await addImg(memorialSvg(m, false)), iO = await addImg(memorialSvg(m, true));
-  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes e sobre a aba; peso das paredes e da laje inferior, e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
+  body.push(figure(iC, 'Figura 1 · Seção transversal na etapa construtiva: escavação aberta, sem solo junto às paredes e sobre a aba, com água até o nível do lençol; peso das paredes e da laje inferior, e subpressão' + (m.subC.rebaixo ? ' (N.A. rebaixado)' : '') + '.', 0.86));
   body.push(figure(iO, 'Figura 2 · Seção transversal na etapa de operação: pesos, solo sobre a laje e a aba' + (p.prisma ? ', prisma de solo (ângulo φ)' : '') + ', empuxo lateral e subpressão.', 0.86));
   body.push(H2('1.3 Fator de segurança'));
   const stageRows = (title, st) => {
     const rows = [{ span: title }];
     st.parts.forEach(x => rows.push(x.incl ? [plainText(x.label), num(x.W, 1), { t: '÷ ' + fmt(x.div, 2), al: 'right' }, num(x.W / x.div, 1)] : [{ t: plainText(x.label), color: C.muted }, { t: '—', al: 'right', color: C.muted }, '', { t: 'não considerada', al: 'right', color: C.muted }]));
     rows.push([{ t: 'Resistência R', b: true }, '', '', { t: fmt(st.R, 1), b: true, al: 'right' }]);
-    rows.push([`Subpressão U = u × A (N.A. em ${fz(st.sub.zw)} m)`, '', { t: `${fmt(st.sub.u, 1)} × ${fmt(st.sub.A)}`, al: 'right' }, num(st.sub.U, 1)]);
+    rows.push([`Subpressão sob a área interna: u × A (N.A. em ${fz(st.sub.zw)} m)`, '', { t: `${fmt(st.sub.u, 1)} × ${fmt(st.sub.A)}`, al: 'right' }, num(st.sub.u * st.sub.A, 1)]);
+    rows.push([`Subpressão líquida na aba: γ_w × mín(h; e_i) × A_aba`, '', { t: `${fmt(p.gw, 1)} × ${fmt(st.sub.ha)} × ${fmt(st.sub.Aaba)}`, al: 'right' }, num(st.sub.Ua, 1)]);
+    rows.push([{ t: 'Subpressão U', b: true }, '', '', { t: fmt(st.sub.U, 1), b: true, al: 'right' }]);
     const okS = st.status === 'ok', fill = st.status === 'ok' ? C.okbg : st.status === 'nok' ? C.badbg : undefined;
     rows.push(st.FS != null ? [{ t: 'FS = R ÷ U', b: true, fill }, { t: '', fill }, { t: `critério FS > ${fmt(p.fsmin, 2)}`, al: 'right', fill }, { t: `${fmt(st.FS, 2)} · ${okS ? 'atende' : 'não atende'}`, b: true, al: 'right', fill, color: okS ? C.ok : C.bad }]
       : [{ t: 'Sem subpressão (U = 0): FS não se aplica', b: true }, '', '', '']);
@@ -2410,8 +2418,9 @@ async function buildMemorialFull(D) {
     ['Subpressão na base (para cima)', `u em ${fz(z.base)} m`, num(aux.uBase), 'permanente'],
     ...(p.ba > 0 ? [['Solo sobre a aba', `σ_v em ${fz(z.botTop)} m`, num(aux.qAba), 'permanente']] : []),
     ['Paredes: peso próprio (kN/m de altura)', '', num(aux.wallWreal || aux.wallW), 'permanente'],
-    { span: `Etapa construtiva (sem laje de topo, escavação drenada)` },
-    ['Subpressão na base (N.A. da etapa)', `z_w = ${fz(aux.zwc)} m`, num(aux.uC), 'permanente'],
+    { span: `Etapa construtiva (sem laje de topo, escavação alagada até o N.A. da etapa)` },
+    ['Subpressão na base', `z_w = ${fz(aux.zwc)} m`, num(aux.uC), 'permanente'],
+    ['Água sobre a aba (para baixo)', `z_w = ${fz(aux.zwc)} m`, num(aux.qAbaWC || 0), 'permanente'],
     ['Sobrecarga no terreno q', 'topo e aba', num(p.q), 'variável'],
     { span: `Pressão lateral nas paredes (kPa), ${aux.k0 ? 'K_0 = 1 − sen φ' : 'K_a'} = ${fmt(aux.K, 3)}` },
     ['Eixo da laje de topo', `z = ${fz(-aux.dA)} m`, num(pg(aux.dA)), 'solo + água'],
@@ -3069,7 +3078,7 @@ if (typeof document !== 'undefined') {
       stageCard('Etapa de operação', 'Caixa completa, com solo sobre a laje de topo', m.oper, m);
     el('calc').innerHTML = stageCalc('Etapa construtiva', m.constr, m) + stageCalc('Etapa de operação', m.oper, m);
     el('fig').innerHTML = drawSection(m, stage === 'oper');
-    el('figcap').textContent = stage === 'oper' ? 'Seção transversal pela largura B, em escala, na etapa de operação. O diagrama de empuxo é esquemático.' : 'Seção transversal pela largura B, em escala, na etapa construtiva: escavação aberta, sem solo encostado nas paredes (folga ilustrativa).';
+    el('figcap').textContent = stage === 'oper' ? 'Seção transversal pela largura B, em escala, na etapa de operação. O diagrama de empuxo é esquemático.' : 'Seção transversal pela largura B, em escala, na etapa construtiva: escavação aberta, sem solo encostado nas paredes (folga ilustrativa), com água até o nível do lençol.';
     el('weights').innerHTML = weightsTable(m);
     el('summary').innerHTML = summaryHtml(m);
     renderFE(m);
