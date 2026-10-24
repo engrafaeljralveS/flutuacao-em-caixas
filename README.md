@@ -33,5 +33,6 @@ Confere o motor de elementos finitos contra a placa engastada (Timoshenko) e o p
 - **v3.7**: etapa construtiva com escavação aberta: só o peso das paredes e da laje inferior (sem solo sobre a aba).
 - **v3.8**: correções da revisão: aba na área de subpressão (solo sobre a laje e a aba com γsat), etapa construtiva no modelo de elementos finitos e na envoltória, empuxo do desenho com o mesmo K dos esforços, peso das paredes sem sobreposição, N.A. acima do terreno nas cargas, orientação de ψ1 e de estanqueidade.
 - **v3.9**: subpressão líquida na aba: coluna d'água inteira sob a área interna às paredes e, na aba, só a espessura dela (a água sobre a aba equilibra o restante); solo sobre a aba com γ′; etapa construtiva com a escavação alagada até o N.A. (água sobre a aba e na face externa das paredes também no modelo de elementos finitos).
+- **v3.10**: tensão no solo: campo de tensão admissível σadm (kPa) no apoio elástico; tensão de contato máxima (operação e etapa construtiva) e média em kPa e kgf/cm², com verificação σmáx ≤ σadm no resumo, no painel H da aba Esforços e no memorial (item 2.4).
 
 Cálculo preliminar: valide coeficientes e hipóteses antes de uso em projeto executivo.

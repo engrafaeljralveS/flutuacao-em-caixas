@@ -62,6 +62,8 @@ const ok = (c, msg) => console.log((c ? '  OK   ' : '  FALHA ') + msg);
   const wall = 2 * (2.3 + 2.7) * 0.2 * 25 * 2.1, top = 13.5 * 2.3 * 2.7 + 13.5 * 0.1 * 2 * (2.3 + 2.7);
   const qC = wall + 5 * 9.57 - 10 * 9.57 + 8 * (9.57 - 2.5 * 2.9);
   ok(Math.abs(cc.Fz - qC) < 0.5, `cargas da etapa construtiva = paredes (altura H) + laje de fundo − subpressão + água sobre a aba = ${qC.toFixed(2)} kN`);
+  const S = A.soil, Abot = 2.9 * 3.3;
+  ok(Math.abs(S.pMed - A.R / Abot) < 1e-6 && S.pMax >= S.pMed && S.sMax === Math.max(S.pMax, S.pMaxC), `tensão no solo: máx. ${S.pMax.toFixed(1)} kPa (${(S.pMax / 98.0665).toFixed(2)} kgf/cm²), construtiva ${S.pMaxC.toFixed(1)}, média ${S.pMed.toFixed(1)} kPa ≤ σadm ${S.sadm} → ${S.ok}`);
   const q2 = JSON.parse(JSON.stringify(inp)); q2.forEach(x => { x.geo.h = 0.075; });
   const A2 = Arm.post(m, run(q2).r, aux);
   const dif = Math.max(...A.rows.map((x, i) => Math.abs(x.Mmax - A2.rows[i].Mmax) / Math.max(1, A2.rows[i].Mmax)));

@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.9 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.10 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -421,7 +421,13 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <section class="panel" aria-label="Esforços de dimensionamento">
         <h2><span class="n">G</span>Esforços de dimensionamento</h2>
         <div class="tablewrap" id="env-table"></div>
-        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU da operação e das 4 da etapa construtiva (sem laje de topo, escavação drenada, peso próprio e subpressão), com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios (fora dos nós parede-laje). Na laje de fundo, a região inclui a aba: vão e aba levam a mesma armadura, comandada pelo maior esforço. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
+        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU da operação e das 4 da etapa construtiva (sem laje de topo, escavação alagada até o N.A., peso próprio e água), com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios (fora dos nós parede-laje). Na laje de fundo, a região inclui a aba: vão e aba levam a mesma armadura, comandada pelo maior esforço. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
+      </section>
+
+      <section class="panel" aria-label="Tensão no solo">
+        <h2><span class="n">H</span>Tensão no solo</h2>
+        <div class="tablewrap" id="soil-table"></div>
+        <p class="msg" style="margin-top:10px">Tensão de contato p = k<sub>v</sub> · w nas molas sob a laje de fundo e a aba (k<sub>v</sub> em kN/m³ = kPa por metro de recalque; tensões em kPa = kN/m²; 1 kgf/cm² = 98,07 kPa), nas combinações características g + q, sem majorar: é a tensão efetiva transmitida ao solo, já descontada a subpressão. A máxima, que ocorre em geral junto às paredes e na aba, é comparada com a tensão admissível σ<sub>adm</sub> do laudo geotécnico (aba Esforços, apoio elástico).</p>
       </section>
 
       <details class="panel">
@@ -1136,6 +1142,7 @@ const Arm = (function () {
     return { V: 0.25 * P.fctd * k * (1.2 + 40 * rho1) * dm * 1000, rho1, k, dm };
   }
   const sMax = h => Math.min(20, 2 * h);
+  const KGF = 98.0665;   // 1 kgf/cm² = 98,0665 kPa
   // Menor As,ef que atende As,nec e w_k,lim; ø ≤ h/8 e s ≤ mín(20 cm; 2h).
   function suggest(AsReq, Mser, h, dl, P, wlim) {
     const cands = [];
@@ -1300,6 +1307,12 @@ const Arm = (function () {
     const car = fe.results[NCOMB.car];
     let pMax = 0, wMax = 0;
     fe.surfNodes.bot.forEach(i => { if (car.press[i] > pMax) pMax = car.press[i]; const w = -car.disp[3 * i + 2]; if (w > wMax) wMax = w; });
+    // tensão de contato (kPa = kN/m²) nas combinações características: operação e etapa construtiva
+    const carC = fe.results.length > NCOMB.comp[1] ? fe.results[fe.results.length - 1] : null;
+    let pMaxC = 0; if (carC && !carC.floated) fe.surfNodes.bot.forEach(i => { if (carC.press[i] > pMaxC) pMaxC = carC.press[i]; });
+    const Abot = (p.B + 2 * p.ep + 2 * p.ba) * (p.L + 2 * p.ep + 2 * p.ba), pMed = car.R / Abot;
+    const sadm = p.sadm > 0 ? p.sadm : null, sTop = Math.max(pMax, pMaxC);
+    const soil = { pMax, pMaxC, pMed, sadm, sMax: sTop, ok: sadm == null ? null : sTop <= sadm + 1e-9, util: sadm ? sTop / sadm : null };
     const elu = ELU.filter(c => c < NCOMB.elu[1]).map(c => fe.results[c]);
     const eluC = ELU.filter(c => c >= NCOMB.elu[1] + 9).map(c => fe.results[c]);
     // pressão de contato ao longo das faixas centrais (combinação característica)
@@ -1312,7 +1325,7 @@ const Arm = (function () {
       frames[d] = { geo: { xin: xf, xw, xtip: p.ba > 0 ? xo + p.ba : xo }, contact: strip(d), pMax, wMax: wMax * 1000, upliftC: car.lifted > 0, Rtot: car.R, Ftot: car.Fz };
     });
     return {
-      P, rows, shear, groups, frames, pMax, wMax: wMax * 1000, R: car.R, Fz: car.Fz,
+      P, rows, shear, groups, frames, pMax, wMax: wMax * 1000, R: car.R, Fz: car.Fz, soil,
       lifted: Math.max(...elu.map(r => r.lifted || 0)), floated: elu.some(r => r.floated), nSpring: fe.surfNodes.bot.length,
       liftedC: fe.liftedC != null ? fe.liftedC : (eluC.length ? Math.max(...eluC.map(r => r.lifted || 0)) : 0), floatedC: fe.floatedC != null ? fe.floatedC : eluC.some(r => r.floated), hasC: eluC.length > 0
     };
@@ -1335,7 +1348,7 @@ const Arm = (function () {
       okFlex: R.field.flex.ok && R.edge.flex.ok, okPhiR: !(Ar > 0) || rb.phi <= row.h * 10 / 8 + 1e-9
     };
   }
-  return { compute: null, check, checkRef, flex, flexN, asMin, crack, vrd1, suggest, woodArmer, barA, BARS, SPAC, mat, feInput, post, NCOMB, DIR, sMax };
+  return { compute: null, check, checkRef, flex, flexN, asMin, crack, vrd1, suggest, woodArmer, barA, BARS, SPAC, mat, feInput, post, NCOMB, DIR, sMax, KGF };
 })();
 
 /* ---------- Desenho da seção transversal ---------- */
@@ -1566,10 +1579,10 @@ const DEFAULTS = {
   B: 2.10, L: 2.50, H: 2.10, ep: 0.20, ei: 0.20, es: 0.20, zs: -0.50, ba: 0.20, gc: 25,
   gd: 17, gsat: 19, phi: 30, c: 0, zw: -2.00, gw: 10,
   fc: 1.10, fs: 1.10, fst: 1.10, fa: 1.10, fpr: 1.30, prisma: true, fsmin: 1.00, abaConstr: true, bo: 0, lo: 0, wa: 0, chamine: true, zr: null,
-  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, kv: 30000, hm: 10
+  fck: 30, fyk: 500, gmc: 1.40, gms: 1.15, dl: 4.0, wlim: 0.30, q: 4, gg: 1.40, gq: 1.40, psi1: 0.40, k0: true, kv: 30000, sadm: 200, hm: 10
 };
 const ARM_KEYS = ['fck', 'fyk', 'gmc', 'gms', 'dl', 'wlim'];
-const ESF_KEYS = ['q', 'gg', 'gq', 'psi1', 'k0', 'kv', 'hm'];
+const ESF_KEYS = ['q', 'gg', 'gq', 'psi1', 'k0', 'kv', 'sadm', 'hm'];
 const FIELDS = [
   { key: 'B', lab: 'Largura, B', tip: 'Largura interna livre', unit: 'm', gt: 0 },
   { key: 'L', lab: 'Comprimento, L', tip: 'Comprimento interno livre', unit: 'm', gt: 0 },
@@ -1607,6 +1620,7 @@ const FIELDS = [
   { key: 'gq', lab: 'γ<sub>q</sub> sobrecarga', tip: 'Coeficiente de ponderação da sobrecarga', unit: '', ge: 0, dec: 2 },
   { key: 'psi1', lab: 'ψ<sub>1</sub> (frequente)', tip: 'Fator de redução da sobrecarga na combinação frequente (fissuração)', unit: '', ge: 0, le: 1, dec: 2 },
   { key: 'kv', lab: 'Coeficiente de mola, k<sub>v</sub>', tip: 'Coeficiente de reação vertical do solo (Winkler)', unit: 'kN/m³', gt: 0, dec: 0 },
+  { key: 'sadm', lab: 'Tensão admissível do solo, σ<sub>adm</sub>', tip: 'Tensão admissível do solo (laudo geotécnico)', unit: 'kPa', gt: 0, dec: 0 },
   { key: 'hm', lab: 'Tamanho dos elementos, h', tip: 'Tamanho máximo dos elementos da malha', unit: 'cm', ge: 5, le: 30, dec: 1 }
 ];
 // Organização do painel de dados: seção, subgrupo, colunas e campos.
@@ -1624,7 +1638,7 @@ const LAYOUT = [
   { sec: 'prem', title: 'Critério', cols: 2, keys: ['fsmin'] },
   { sec: 'am', title: 'Materiais', cols: 2, keys: ['fck', 'fyk', 'gmc', 'gms'] },
   { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm (NBR 6118, Tabela 13.4). Se a caixa precisar ser estanque (reservatório ou contato permanente com água), adote um limite menor, usualmente 0,1 a 0,2 mm, conforme a norma específica de reservatórios.' },
-  { sec: 'aa', title: 'Apoio elástico (Winkler)', cols: 2, keys: ['kv'], note: 'Molas sob a laje de fundo e a aba, só de compressão (as tracionadas são desligadas). Ordem de grandeza: argila mole 5.000–15.000; areia média 20.000–50.000; areia compacta 50.000–120.000 kN/m³. Use o valor do laudo geotécnico.' },
+  { sec: 'aa', title: 'Apoio elástico (Winkler)', cols: 2, keys: ['kv', 'sadm'], note: 'k<sub>v</sub> em kN/m³ (kPa por metro de recalque): molas sob a laje de fundo e a aba, só de compressão. Ordem de grandeza: argila mole 5.000–15.000; areia média 20.000–50.000; areia compacta 50.000–120.000 kN/m³. σ<sub>adm</sub> em kPa = kN/m² (1 kgf/cm² = 98,07 kPa; 200 kPa ≈ 2,0 kgf/cm²): a maior tensão de contato característica é comparada com ela. Use os valores do laudo geotécnico.' },
   { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, sobre a aba e nas paredes como K · q.' },
   { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], note: 'ELU: cada ação com 1,0 ou γ<sub>g</sub> (permanentes) e 0 ou γ<sub>q</sub> (sobrecarga), nas 16 combinações. ELS frequente: g + ψ<sub>1</sub> q. ψ<sub>1</sub> pela NBR 6118, Tabela 11.2: 0,4 sem predominância de equipamentos ou de concentração de pessoas; 0,6 com predominância; 0,7 em bibliotecas, arquivos, oficinas e garagens. Para tráfego de veículos, use o valor da norma de cargas móveis aplicável.' },
   { sec: 'emod', title: 'Malha', cols: 2, keys: ['hm'], note: 'Elementos de casca de até h; junto às ligações parede-laje a malha é refinada (até e/4). 10 cm é um bom padrão; malhas abaixo de 7,5 cm ficam lentas.' }
@@ -1996,10 +2010,24 @@ function armSrcHtml(m) {
 
 const card = (title, tag, state, big, lab) => `<article class="stage"><div class="stage-head"><div><h3>${title}</h3><p class="tag">${tag}</p></div>${state === 'ok' ? '<span class="pill ok">✓ Atende</span>' : state === 'bad' ? '<span class="pill bad">✕ Não atende</span>' : state === 'info' ? '' : `<span class="pill neutral">${state}</span>`}</div><div class="fs"><span class="big ${state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : ''}">${big}</span><span class="lab">${lab}</span></div></article>`;
 
+// tensão no solo: máxima das combinações características (operação e etapa construtiva) contra σ_adm
+function soilCard(A) {
+  const s = A.soil, K = Arm.KGF, st = s.ok == null ? 'info' : s.ok ? 'ok' : 'bad';
+  return card('Tensão no solo', 'característica g + q, máxima', st, fmt(s.sMax / K, 2),
+    `kgf/cm² (${fmt(s.sMax, 1)} kPa)<br>` + (s.sadm ? `σ<sub>adm</sub> = ${fmt(s.sadm / K, 2)} kgf/cm² (${fmt(s.sadm, 0)} kPa) · ${fmt(s.util * 100, 0)} %<br>` : 'informe σ<sub>adm</sub> para verificar<br>') +
+    `recalque máx. ${fmt(A.wMax, 2)} mm`);
+}
+function soilTableHtml(A) {
+  const s = A.soil, K = Arm.KGF, r = (l, v, b) => `<tr${b ? ' class="tot"' : ''}><td class="l">${l}</td><td class="num">${fmt(v, 1)}</td><td class="num">${fmt(v / K, 2)}</td></tr>`;
+  return `<table class="calc"><thead><tr><th class="l">Tensão de contato (característica g + q)</th><th class="num" style="text-transform:none">kPa</th><th class="num" style="text-transform:none">kgf/cm²</th></tr></thead><tbody>` +
+    r('Máxima, etapa de operação', s.pMax) + (A.hasC ? r('Máxima, etapa construtiva', s.pMaxC) : '') + r('Média na operação (Σ reações ÷ área da laje de fundo)', s.pMed) +
+    (s.sadm ? r('Tensão admissível σ<sub>adm</sub>', s.sadm, true) : '') + `</tbody></table>` +
+    (s.sadm ? `<p class="msg" style="margin-top:8px;font-weight:600;color:var(${s.ok ? '--ok' : '--bad'})">${s.ok ? '✓' : '✕'} σ<sub>máx</sub> = ${fmt(s.sMax / K, 2)} kgf/cm² ${s.ok ? '≤' : '>'} σ<sub>adm</sub> = ${fmt(s.sadm / K, 2)} kgf/cm² (${fmt(s.util * 100, 0)} %). ${s.ok ? 'O solo resiste à carga aplicada.' : 'O solo não resiste: aumente a aba ou a área da laje de fundo, ou reveja a fundação.'}</p>` : '');
+}
 function feSummaryHtml(fe, A) {
   const err = A.Fz !== 0 ? Math.abs(A.R - A.Fz) / Math.abs(A.Fz) * 100 : 0;
   return card('Modelo', 'elementos finitos de casca', 'info', fmt(fe.stats.nElem, 0), `elementos (¼ da caixa)<br>${fmt(fe.stats.nEq, 0)} equações · ${fmt(fe.stats.ms / 1000, 1)} s`) +
-    card('Reação do solo', 'característica g + q', 'info', fmt(A.pMax, 1), `kPa, pressão máxima<br>recalque máx. ${fmt(A.wMax, 2)} mm`) +
+    soilCard(A) +
     card('Equilíbrio', 'Σ reações = Σ cargas', err < 0.1 ? 'ok' : 'bad', fmt(A.R, 1), `kN de reação<br>cargas: ${fmt(A.Fz, 1)} kN (${fmt(err, 3)} %)`);
 }
 
@@ -2452,6 +2480,18 @@ async function buildMemorialFull(D) {
   });
   body.push(table([1500, 2406, 1200, 1200, 1300, 1300, 1300], ['Armadura', 'Face tracionada', 'M_d (kN·m/m)', 'N_d (kN/m)', 'M_{d,máx}', 'M_ser', 'V_Sd (kN/m)'], envRows));
   body.push(txt('Envoltória das 16 combinações ELU da operação e das 4 da etapa construtiva nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
+
+  body.push(H2('2.4 Tensão no solo'));
+  {
+    const s = A.soil, K = Arm.KGF, r = (l, v, b) => [b ? { t: l, b: true } : l, num(v, 1), { t: fmt(v / K, 2), al: 'right', b: !!b }];
+    const rs = [r('Máxima, etapa de operação', s.pMax)];
+    if (A.hasC) rs.push(r('Máxima, etapa construtiva', s.pMaxC));
+    rs.push(r('Média na operação (Σ reações ÷ área da laje de fundo)', s.pMed));
+    if (s.sadm) rs.push(r('Tensão admissível σ_adm', s.sadm, true));
+    body.push(table([5806, 1800, 1800], ['Tensão de contato (característica g + q)', 'kPa', 'kgf/cm²'], rs));
+    body.push(txt(`Tensão p = k_v · w nas molas sob a laje de fundo e a aba (k_v = ${fmt(p.kv, 0)} kN/m³), nas combinações características, sem majorar; é a tensão efetiva, já descontada a subpressão.` +
+      (s.sadm ? ` σ_máx = ${fmt(s.sMax / K, 2)} kgf/cm² ${s.ok ? '≤' : '>'} σ_adm = ${fmt(s.sadm / K, 2)} kgf/cm² (${fmt(s.util * 100, 0)} %): ${s.ok ? 'atende' : 'não atende'}.` : ''), { color: C.muted, sz: 16 }));
+  }
 
   /* ===== 3. Armaduras ===== */
   body.push(H1('3. Dimensionamento das armaduras (NBR 6118)'));
@@ -3016,6 +3056,7 @@ if (typeof document !== 'undefined') {
     el('strip-cap').innerHTML = (view.sv === 'P' ? 'Planta das paredes na meia altura livre (flexão horizontal). ' : `Corte pela faixa central na direção ${view.sv} (${view.sv === 'B' ? 'y = 0' : 'x = 0'}), pelos eixos dos elementos. `) +
       (view.sk === 'M' ? 'Momentos fletores em kN·m/m, desenhados do lado tracionado.' : 'Esforços cortantes em kN/m.') + ' Rótulos nas faces dos apoios e nos extremos da região de dimensionamento; o trecho tracejado fica dentro dos nós parede-laje e não é usado no dimensionamento.' + ` Caso: ${CASES.find(c => c[0] === view.mk)[1]} (o mesmo do mapa).`;
     el('env-table').innerHTML = envTableHtml(A);
+    el('soil-table').innerHTML = soilTableHtml(A);
 
     // aba Armaduras
     const sel = {}, chk = {};
