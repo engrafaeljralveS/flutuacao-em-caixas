@@ -263,7 +263,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Aplicativo v3.7 · base: roteiro v1.1 · verificação preliminar</p>
+    <p class="eyebrow">Aplicativo v3.8 · base: roteiro v1.1 · verificação preliminar</p>
     <h1>Flutuação em Caixas</h1>
     <p class="sub">Caixas enterradas de concreto armado: fator de segurança contra flutuação nas etapas construtiva e de operação, e esforços por elementos finitos e dimensionamento das armaduras das lajes e paredes.</p>
   </header>
@@ -338,7 +338,8 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
           <li>Sem sobrecargas no terreno ou sobre a laje de topo (o valor de 4 kN/m² fica para etapa posterior).</li>
           <li>Sem água no interior da caixa, drenagem, alívio de pressão ou escoamento transitório.</li>
           <li>Sem atrito lateral nem resistência passiva do solo.</li>
-          <li>A aba inferior não entra na área de subpressão: A = B<sub>ext</sub> × L<sub>ext</sub>.</li>
+          <li>A subpressão age em toda a laje inferior, com a aba: A = B<sub>inf</sub> × L<sub>inf</sub>. O solo sobre a laje de topo e sobre a aba entra com o peso total (γ<sub>sat</sub> abaixo do N.A.); o prisma de solo, fora dessa área, com γ′.</li>
+          <li>Etapa construtiva: escavação aberta e drenada, sem solo nem água sobre a aba e junto às paredes; a subpressão sob a laje usa o N.A. da etapa (com o rebaixo, se houver).</li>
           <li>O desenho explica as premissas e não é resultado de dimensionamento.</li>
         </ul>
       </details>
@@ -420,7 +421,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <section class="panel" aria-label="Esforços de dimensionamento">
         <h2><span class="n">G</span>Esforços de dimensionamento</h2>
         <div class="tablewrap" id="env-table"></div>
-        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU, com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios (fora dos nós parede-laje). Na laje de fundo, a região inclui a aba: vão e aba levam a mesma armadura, comandada pelo maior esforço. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
+        <p class="msg" style="margin-top:10px">Envoltória das 16 combinações ELU da operação e das 4 da etapa construtiva (sem laje de topo, escavação drenada, peso próprio e subpressão), com momentos de Wood-Armer (M ± |m<sub>xy</sub>|) por face e direção, nas regiões entre as faces dos apoios (fora dos nós parede-laje). Na laje de fundo, a região inclui a aba: vão e aba levam a mesma armadura, comandada pelo maior esforço. M<sub>d</sub> e N<sub>d</sub> são os da seção que exige mais armadura (N<sub>d</sub> + = tração); M<sub>d,máx</sub> é o maior momento da região; M<sub>ser</sub> vem da combinação frequente. V<sub>Sd</sub> é o maior cortante na face dos apoios. Esses valores alimentam a aba Armaduras.</p>
       </section>
 
       <details class="panel">
@@ -431,7 +432,9 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
           <li>Laje de fundo e aba sobre molas de Winkler (k<sub>v</sub> × área de influência de cada nó), só de compressão: as molas tracionadas são desligadas e o cálculo se repete, em cada combinação.</li>
           <li>A pressão lateral age nas paredes entre os eixos das lajes; a parcela sobre as meias espessuras das lajes entra como carga de linha nas bordas. A faixa da laje de topo além do eixo da parede entra como carga de linha no topo da parede. A abertura e a chaminé (peso no lugar do solo) entram no modelo; o empuxo sobre a chaminé, não.</li>
           <li>Validação: placa engastada (flecha e momento central dentro de 1 % de Timoshenko) e caixa longa contra o pórtico plano (momentos nas faces dentro de 1 %). O equilíbrio vertical é conferido em cada análise.</li>
-          <li>Não verifica: etapa construtiva (paredes em balanço antes da laje de topo), caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, carregamentos assimétricos.</li>
+          <li>Etapa construtiva: mesmo modelo, com a laje de topo sem rigidez (paredes em balanço), sem solo, água ou sobrecarga nas paredes e na aba, e com a subpressão do N.A. da etapa (com o rebaixo). Peso próprio e subpressão entram como ações separadas (1,0 ou γ<sub>g</sub> cada). Os esforços entram na envoltória do dimensionamento.</li>
+          <li>Peso das paredes no modelo só na altura livre H (o trecho dentro das lajes está no peso delas). Com o N.A. acima do terreno, a lâmina d'água entra nas cargas verticais e na pressão lateral.</li>
+          <li>Não verifica: caixa cheia de água sem aterro, cargas concentradas, aberturas nas paredes, carregamentos assimétricos.</li>
         </ul>
       </details>
     </main>
@@ -477,7 +480,7 @@ td .pill { font-size: 11.5px; padding: 2px 8px; }
       <section class="panel" aria-label="Cortante">
         <h2><span class="n">D</span>Cortante nas faces dos apoios</h2>
         <div class="tablewrap" id="arm-shear"></div>
-        <p class="msg" style="margin-top:10px">V<sub>Rd1</sub> = τ<sub>Rd</sub> · k · (1,2 + 40ρ<sub>1</sub>) · b<sub>w</sub> · d, com τ<sub>Rd</sub> = 0,25 f<sub>ctd</sub>, k = 1,6 − d ≥ 1 e ρ<sub>1</sub> da armadura tracionada no apoio (NBR 6118, 19.4.1). A compressão normal (σ<sub>cp</sub>) é desprezada, a favor da segurança.</p>
+        <p class="msg" style="margin-top:10px">V<sub>Rd1</sub> = τ<sub>Rd</sub> · k · (1,2 + 40ρ<sub>1</sub>) · b<sub>w</sub> · d, com τ<sub>Rd</sub> = 0,25 f<sub>ctd</sub>, k = 1,6 − d ≥ 1 e ρ<sub>1</sub> da armadura tracionada no apoio (NBR 6118, 19.4.1). k = 1,6 − d vale quando pelo menos 50 % da armadura tracionada chega ao apoio (malhas contínuas); caso contrário, use k = 1. A compressão normal (σ<sub>cp</sub>) é desprezada, a favor da segurança.</p>
       </section>
 
       <details class="panel">
@@ -521,18 +524,18 @@ const Calc = (function () {
   }
 
   function lateral(p, zA, zB) {
-    const Ka = Math.pow(Math.tan((45 - p.phi / 2) * Math.PI / 180), 2);
+    const Ka = p.k0 ? 1 - Math.sin(p.phi * Math.PI / 180) : Math.pow(Math.tan((45 - p.phi / 2) * Math.PI / 180), 2);
     const sKa = Math.sqrt(Ka);
     const gp = Math.max(0, p.gsat - p.gw);
     const dw = p.zw < 0 ? -p.zw : 0;
     const sv = d => (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw));
-    const sh = d => Math.max(0, Ka * sv(d) - 2 * p.c * sKa);
+    const sh = d => Math.max(0, Ka * sv(d) - (p.k0 ? 0 : 2 * p.c * sKa));
     const uw = d => p.gw * Math.max(0, d - dw);
     const dA = -zA, dB = -zB;
     if (!(dB > dA)) return { Ka, pts: [] };
     const bps = new Set([dA, dB]);
     if (dw > dA && dw < dB) bps.add(dw);
-    if (p.c > 0 && Ka > 0) {
+    if (!p.k0 && p.c > 0 && Ka > 0) {
       const svc = 2 * p.c / sKa;
       let dc = null;
       if (svc <= p.gd * dw) dc = svc / p.gd;
@@ -576,8 +579,8 @@ const Calc = (function () {
     // a parcela saturada entra com γsat − γw.
     const soilArea = Math.max(0, supArea - (chimH > 0 ? Math.min(chimOuter, supArea) : openArea));
     vol.soilArea = soilArea;
-    const soloTopo = layer(p, z.topTop, soilArea, true);
-    const soloAba = layer(p, z.botTop, infArea - supArea, true);
+    const soloTopo = layer(p, z.topTop, soilArea, false);
+    const soloAba = layer(p, z.botTop, infArea - supArea, false);
     // Prisma de solo: cunha que parte da borda da laje inferior (com a aba), na cota da face superior
     // dela, e sobe até o terreno abrindo para fora com o ângulo φ (medido da vertical), nas quatro faces,
     // com os cantos. Fração saturada com γ′ = γsat − γw, como o solo sobre a aba.
@@ -595,7 +598,7 @@ const Calc = (function () {
 
     // Subpressão: A = área externa das paredes, sem a aba. Na etapa construtiva, o rebaixo do
     // lençol (ponteiras) limita o nível d'água à cota zr: vale o menor entre zw e zr.
-    const A = Bext * Lext;
+    const A = Binf * Linf;
     const waterAt = zwLevel => { const h = Math.max(0, zwLevel - z.base); const u = p.gw * h; return { zw: zwLevel, h, u, A, U: u * A }; };
     const sub = waterAt(p.zw);
     const hasZr = p.zr != null && Number.isFinite(p.zr);
@@ -785,7 +788,7 @@ function FEengine() {
         const uc = (us[i] + us[i + 1]) / 2, vc = (vs[j] + vs[j + 1]) / 2;
         if (keep && !keep(uc, vc)) continue;
         const n = [node(...P(us[i], vs[j])), node(...P(us[i + 1], vs[j])), node(...P(us[i + 1], vs[j + 1])), node(...P(us[i], vs[j + 1]))];
-        elems.push({ s: name, n, a: us[i + 1] - us[i], b: vs[j + 1] - vs[j], t, c: P(uc, vc) });
+        elems.push({ s: name, n, a: us[i + 1] - us[i], b: vs[j + 1] - vs[j], t, c: P(uc, vc), Ef: (g.noTop && name === 'top') ? 1e-4 : 1 });
       }
     };
     // laje de topo: x' = x, y' = y
@@ -861,7 +864,7 @@ function FEengine() {
     const maxa = new Int32Array(n + 1); for (let j = 0; j < n; j++) maxa[j + 1] = maxa[j] + (j - top[j] + 1);
     const a0 = new Float64Array(maxa[n]);
     mesh.elems.forEach(e => {
-      const M = elemMats(e.a, e.b, e.t, mat.E, mat.nu), T = SURF[e.s].T;
+      const M = elemMats(e.a, e.b, e.t, mat.E * (e.Ef || 1), mat.nu), T = SURF[e.s].T;
       // Kg = Rᵀ K R, R = blocos de T
       const Kg = globalK(M.K, T);
       const idx = []; e.n.forEach(nd => { for (let d = 0; d < 6; d++) idx.push(eq[6 * nd + d]); });
@@ -900,7 +903,7 @@ function FEengine() {
   /* ----- resultantes: pontos de Gauss e recuperação nodal (SPR, Zienkiewicz-Zhu) ----- */
   function gaussValues(mesh, eq, U, mat) {
     return mesh.elems.map(e => {
-      const M = elemMats(e.a, e.b, e.t, mat.E, mat.nu), T = SURF[e.s].T, ul = new Float64Array(24);
+      const M = elemMats(e.a, e.b, e.t, mat.E * (e.Ef || 1), mat.nu), T = SURF[e.s].T, ul = new Float64Array(24);
       e.n.forEach((nd, k) => { for (let blk = 0; blk < 2; blk++) { const gv = [0, 1, 2].map(c => { const q = eq[6 * nd + 3 * blk + c]; return q >= 0 ? U[q] : 0; }); for (let r = 0; r < 3; r++) ul[6 * k + 3 * blk + r] = T[r][0] * gv[0] + T[r][1] * gv[1] + T[r][2] * gv[2]; } });
       return M.S.map(rows => rows.map(row => { let s = 0; for (let k = 0; k < 24; k++) s += row[k] * ul[k]; return s; }));
     });
@@ -972,7 +975,8 @@ function FEengine() {
     const springNodes = []; for (let i = 0; i < nn; i++) if (trib[i] > 0) springNodes.push(i);
 
     // ---- cargas (4 componentes): 0 permanentes verticais, 1 empuxo + água, 2 sobrecarga vertical, 3 sobrecarga lateral
-    const sh = d => Math.max(0, L.K * (d <= L.dw ? L.gd * d : L.gd * L.dw + L.gp * (d - L.dw)) - L.cT);
+    const dS = Math.max(0, L.dw);
+    const sh = d => Math.max(0, L.K * (d <= dS ? L.gd * d : L.gd * dS + L.gp * (d - dS)) - L.cT);
     const uw = d => L.gw * Math.max(0, d - L.dw);
     const pg = d => sh(d) + uw(d);
     const depth = z => L.dB - z;
@@ -981,7 +985,7 @@ function FEengine() {
     const F = [
       areaLoad(mesh, eq, n, (x, y, z, e) => {
         if (e.s === 'top') return [0, 0, -(L.qtSelf + (inRing(e.c[0], e.c[1]) ? L.qChim : L.qtSoil))];
-        if (e.s === 'bot') return [0, 0, -L.qbSelf + L.uBase - (inAba(e.c[0], e.c[1]) ? L.qAba : 0)];
+        if (e.s === 'bot') return [0, 0, -L.qbSelf + (L.sepU ? 0 : L.uBase) - (inAba(e.c[0], e.c[1]) ? L.qAba : 0)];
         return [0, 0, -L.wallW];
       }),
       areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'wx' ? [-pg(depth(z)), 0, 0] : e.s === 'wy' ? [0, -pg(depth(z)), 0] : null),
@@ -1013,6 +1017,7 @@ function FEengine() {
     lineLoad(F[3], topEdgeX, 1, [-L.Kq * g.es / 2, 0, 0]); lineLoad(F[3], topEdgeY, 0, [0, -L.Kq * g.es / 2, 0]);
     lineLoad(F[3], botEdgeX, 1, [-L.Kq * g.ei / 2, 0, 0]); lineLoad(F[3], botEdgeY, 0, [0, -L.Kq * g.ei / 2, 0]);
     // carga vertical total aplicada (1/4 da caixa), por componente
+    if (L.sepU) F.push(areaLoad(mesh, eq, n, (x, y, z, e) => e.s === 'bot' ? [0, 0, L.uBase] : null));
     const Fz = F.map(Fv => { let s = 0; for (let i = 0; i < nn; i++) { const q = eq[6 * i + 2]; if (q >= 0) s += Fv[q]; } return s; });
 
     // ---- solução com molas (só compressão)
@@ -1161,19 +1166,21 @@ const Arm = (function () {
   function feInput(m) {
     const p = m.p, z = m.z, P = mat(p);
     const Bc = p.B + p.ep, Lc = p.L + p.ep, Hc = p.H + (p.es + p.ei) / 2;
-    const dw = p.zw < 0 ? -p.zw : 0, gp = Math.max(0, p.gsat - p.gw);
+    // dw: profundidade do N.A. (negativa se o N.A. estiver acima do terreno); dS: limite para o solo (≥ 0)
+    const dw = -p.zw, dS = Math.max(0, dw), wTop = p.gw * Math.max(0, p.zw), gp = Math.max(0, p.gsat - p.gw);
     const phiR = p.phi * Math.PI / 180;
     const K = p.k0 ? 1 - Math.sin(phiR) : Math.pow(Math.tan(Math.PI / 4 - phiR / 2), 2);
     const cT = p.k0 ? 0 : 2 * p.c * Math.sqrt(K);
-    const svT = d => (d <= dw ? p.gd * d : p.gd * dw + p.gsat * (d - dw));
+    const svT = d => (d <= dS ? p.gd * d : p.gd * dS + p.gsat * (d - dS)) + wTop;   // inclui a lâmina d'água acima do terreno
     const uw = d => p.gw * Math.max(0, d - dw);
-    const sh = d => Math.max(0, K * (d <= dw ? p.gd * d : p.gd * dw + gp * (d - dw)) - cT);
+    const sh = d => Math.max(0, K * (d <= dS ? p.gd * d : p.gd * dS + gp * (d - dS)) - cT);
     const dA = -(z.topTop - p.es / 2), dB = dA + Hc;
     const cover = Math.max(0, -z.topTop), dAba = Math.max(0, -z.botTop);
     const loads = {
       K, gd: p.gd, gp, gw: p.gw, dw, cT, dA, dB,
       qtSelf: p.gc * p.es, qtSoil: svT(cover), qChim: p.gc * (m.vol.chimH || 0), qbSelf: p.gc * p.ei, uBase: uw(-z.base),
-      qAba: svT(dAba), wallW: p.gc * p.ep, q: p.q, Kq: K * p.q
+      // peso das paredes só na altura livre H (o trecho dentro das lajes já está no peso delas)
+      qAba: svT(dAba), wallW: p.gc * p.ep * p.H / Hc, q: p.q, Kq: K * p.q
     };
     const G = [p.gg, p.gg, p.gq, p.gq], combos = [];
     for (let a = 0; a < 16; a++) combos.push({ f: [0, 1, 2, 3].map(k => ((a >> k) & 1) ? G[k] : (k < 2 ? 1 : 0)) });
@@ -1184,11 +1191,20 @@ const Arm = (function () {
       geo: { Bc, Lc, Hc, ep: p.ep, es: p.es, ei: p.ei, ba: p.ba, bo: m.vol.openArea > 0 ? m.vol.boE : 0, lo: m.vol.openArea > 0 ? m.vol.loE : 0, chimH: m.vol.chimH || 0, h: p.hm / 100 },
       mat: { E: Math.round(P.Ecs * 1000), nu: 0.2 }, kv: p.kv, loads, combos
     };
+    // Etapa construtiva: sem laje de topo (elementos com rigidez desprezível), escavação aberta e drenada
+    // (sem solo, água ou sobrecarga nas paredes e na aba); peso próprio e subpressão como ações separadas.
+    const zwc = p.zr != null && Number.isFinite(p.zr) ? Math.min(p.zw, p.zr) : p.zw;
+    const uC = p.gw * Math.max(0, zwc - z.base);
+    const lc = Object.assign({}, loads, { K: 0, Kq: 0, gw: 0, cT: 0, qtSelf: 0, qtSoil: 0, qChim: 0, qAba: 0, q: 0, uBase: uC, sepU: true });
+    const cc = [];
+    for (let a = 0; a < 4; a++) cc.push({ f: [(a & 1) ? p.gg : 1, 0, 0, 0, (a & 2) ? p.gg : 1] });
+    cc.push({ f: [1, 0, 0, 0, 1] });
+    const inpC = { geo: Object.assign({}, inp.geo, { noTop: true }), mat: inp.mat, kv: p.kv, loads: lc, combos: cc };
     const aux = Object.assign({}, loads, {
       Bc, Lc, Hc, cover, dAba, k0: !!p.k0, sh, uw, pg: d => sh(d) + uw(d), pqL: K * p.q,
-      qtg: loads.qtSelf + loads.qtSoil, qAbaSoil: loads.qAba, ksB: 1, ksL: 1, kvLong: 1, kvShort: 1, Ecs: P.Ecs
+      qtg: loads.qtSelf + loads.qtSoil, qAbaSoil: loads.qAba, ksB: 1, ksL: 1, kvLong: 1, kvShort: 1, Ecs: P.Ecs, wallWreal: p.gc * p.ep
     });
-    return { inp, aux };
+    return { inp: [inp, inpC], aux: Object.assign(aux, { uC, zwc }) };
   }
 
   /* ----- pós-processamento: regiões de dimensionamento e envoltórias ----- */
@@ -1217,7 +1233,8 @@ const Arm = (function () {
         items: [['ws-v', 'Vertical', 'v', q => (Math.abs(q[2] - zf1) < tol || Math.abs(q[2] - zf2) < tol) && q[0] <= G.xf + tol], ['ws-h', 'Horizontal', 'h', q => Math.abs(q[0] - G.xf) < tol && inZ(q)]] });
 
     const rows = [], shear = [];
-    const [e0, e1] = NCOMB.elu, [s0, s1] = NCOMB.els;
+    const ELU = fe.eluIdx || Array.from({ length: NCOMB.elu[1] - NCOMB.elu[0] }, (_, i) => NCOMB.elu[0] + i);
+    const ELS = fe.elsIdx || Array.from({ length: NCOMB.els[1] - NCOMB.els[0] }, (_, i) => NCOMB.els[0] + i);
     groups.forEach(g => {
       const hc = g.h * 100, mn = asMin(hc, p.dl, P), list = fe.surfNodes[g.s];
       g.items.forEach(([key, dir, dk, line]) => {
@@ -1232,7 +1249,7 @@ const Arm = (function () {
         ['int', 'ext'].forEach((side, si) => {
           const demand = set => {
           let best = { As: -1 }, Ms = 0, Mmax = 0;
-          for (let c = e0; c < e1; c++) {
+          for (const c of ELU) {
             const R = fe.results[c].res[g.s];
             set.forEach(j => {
               const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), Md = (side === 'ext' ? wa.e : wa.i)[k], Nd = R[o + 5 + k];
@@ -1241,7 +1258,7 @@ const Arm = (function () {
               if (As > best.As) best = { As, r, Md, Nd, c, j };
             });
           }
-          for (let c = s0; c < s1; c++) {
+          for (const c of ELS) {
             const R = fe.results[c].res[g.s];
             set.forEach(j => { const o = 8 * j, wa = woodArmer(R[o], R[o + 1], R[o + 2]), v = (side === 'ext' ? wa.e : wa.i)[k]; if (v > Ms) Ms = v; });
           }
@@ -1259,7 +1276,7 @@ const Arm = (function () {
             at: best.j != null ? node(list[best.j]) : null, combo: best.c });
         });
         let Vd = 0, Vat = null;
-        for (let c = e0; c < e1; c++) { const R = fe.results[c].res[g.s]; lineIdx.forEach(j => { const v = Math.abs(R[8 * j + 3 + k]); if (v > Vd) { Vd = v; Vat = node(list[j]); } }); }
+        for (const c of ELU) { const R = fe.results[c].res[g.s]; lineIdx.forEach(j => { const v = Math.abs(R[8 * j + 3 + k]); if (v > Vd) { Vd = v; Vat = node(list[j]); } }); }
         shear.push({ key, group: g.key, el: g.name, dir, h: hc, Vd, at: Vat, extKey: key + (g.key === 'aba' ? '-int' : '-ext') });
       });
     });
@@ -1280,7 +1297,8 @@ const Arm = (function () {
     const car = fe.results[NCOMB.car];
     let pMax = 0, wMax = 0;
     fe.surfNodes.bot.forEach(i => { if (car.press[i] > pMax) pMax = car.press[i]; const w = -car.disp[3 * i + 2]; if (w > wMax) wMax = w; });
-    const elu = fe.results.slice(e0, e1);
+    const elu = ELU.filter(c => c < NCOMB.elu[1]).map(c => fe.results[c]);
+    const eluC = ELU.filter(c => c >= NCOMB.elu[1] + 9).map(c => fe.results[c]);
     // pressão de contato ao longo das faixas centrais (combinação característica)
     const strip = dir => fe.surfNodes.bot.map(i => node(i)).map((q, k) => ({ q, i: fe.surfNodes.bot[k] }))
       .filter(o => dir === 'B' ? Math.abs(o.q[1]) < tol : Math.abs(o.q[0]) < tol)
@@ -1292,7 +1310,8 @@ const Arm = (function () {
     });
     return {
       P, rows, shear, groups, frames, pMax, wMax: wMax * 1000, R: car.R, Fz: car.Fz,
-      lifted: Math.max(...elu.map(r => r.lifted || 0)), floated: elu.some(r => r.floated), nSpring: fe.surfNodes.bot.length
+      lifted: Math.max(...elu.map(r => r.lifted || 0)), floated: elu.some(r => r.floated), nSpring: fe.surfNodes.bot.length,
+      liftedC: fe.liftedC != null ? fe.liftedC : (eluC.length ? Math.max(...eluC.map(r => r.lifted || 0)) : 0), floatedC: fe.floatedC != null ? fe.floatedC : eluC.some(r => r.floated), hasC: eluC.length > 0
     };
   }
 
@@ -1372,11 +1391,10 @@ function drawSection(m, oper) {
     [-1, 1].forEach(sg => {
       const xa = sg > 0 ? X(m.Bext / 2) : X(-xe), xb = sg > 0 ? X(xe) : X(-m.Bext / 2);
       o.push(`<rect x="${f1(xa)}" y="${f1(Y(0))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(0))}" style="fill:var(--surface)"/>`);
-      if (zwD > z.base) o.push(`<rect x="${f1(xa)}" y="${f1(Y(wl))}" width="${f1(xb - xa)}" height="${f1(Y(z.base) - Y(wl))}" style="fill:var(--water);opacity:.18"/>`);
       const xc = X(sg * xe);
       o.push(`<polyline points="${f1(xc)},${f1(Y(0))} ${f1(xc)},${f1(Y(z.base))} ${f1(X(sg * m.Binf / 2))},${f1(Y(z.base))}" style="fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:6 4"/>`);
     });
-    o.push(`<text class="halo" x="${f1(X(xe) - 4)}" y="${f1(Y(0) + 16)}" text-anchor="end" font-size="11" style="fill:var(--muted)">escavação</text>`);
+    o.push(`<text class="halo" x="${f1(X(xe) - 4)}" y="${f1(Y(0) + 16)}" text-anchor="end" font-size="11" style="fill:var(--muted)">escavação drenada</text>`);
   }
 
   // concreto
@@ -1483,9 +1501,9 @@ function drawSection(m, oper) {
   // subpressão sob a laje de fundo
   if (sbD.U > 1e-9) {
     const yb = Y(z.base);
-    const n = Math.max(3, Math.min(8, Math.round(m.Bext * s / 36)));
+    const n = Math.max(3, Math.min(9, Math.round(m.Binf * s / 36)));
     for (let i = 0; i < n; i++) {
-      const xx = X(-m.Bext / 2) + (i + 0.5) * (m.Bext * s / n);
+      const xx = X(-m.Binf / 2) + (i + 0.5) * (m.Binf * s / n);
       o.push(`<line x1="${f1(xx)}" y1="${f1(yb + 34)}" x2="${f1(xx)}" y2="${f1(yb + 4)}" marker-end="url(#aW)" style="stroke:var(--water);stroke-width:1.6"/>`);
     }
     o.push(`<text class="halo" x="${f1(X(0))}" y="${f1(yb + 50)}" text-anchor="middle" font-size="11.5" style="fill:var(--water);font-weight:600">u = ${fmt(sbD.u, 1)} kPa  ·  U = ${fmt(sbD.U, 1)} kN</text>`);
@@ -1532,7 +1550,7 @@ function drawSection(m, oper) {
       }
       const last = lat.pts[lat.pts.length - 1];
       o.push(`<text class="halo" x="${f1(x0 + (last.sig + last.u) * k + 8)}" y="${f1(yE - 4)}" font-size="11" style="fill:var(--ink)">σ<tspan font-size="8" dy="2">h</tspan><tspan dy="-2"> ≈ ${fmt(last.sig + last.u, 1)} kPa</tspan></text>`);
-      o.push(`<text class="halo" x="${f1(x0 + (last.sig + last.u) * k + 8)}" y="${f1(yE + 9)}" font-size="10.5" style="fill:var(--muted)">K<tspan font-size="8" dy="2">a</tspan><tspan dy="-2"> = ${fmt(lat.Ka, 3)} (esquemático)</tspan></text>`);
+      o.push(`<text class="halo" x="${f1(x0 + (last.sig + last.u) * k + 8)}" y="${f1(yE + 9)}" font-size="10.5" style="fill:var(--muted)">K<tspan font-size="8" dy="2">${p.k0 ? '0' : 'a'}</tspan><tspan dy="-2"> = ${fmt(lat.Ka, 3)}</tspan></text>`);
     }
   }
   o.push('</svg>');
@@ -1601,10 +1619,10 @@ const LAYOUT = [
   { sec: 'prem', title: 'Divisores', cols: 2, keys: ['fc', 'fs', 'fst', 'fa'] },
   { sec: 'prem', title: 'Critério', cols: 2, keys: ['fsmin'] },
   { sec: 'am', title: 'Materiais', cols: 2, keys: ['fck', 'fyk', 'gmc', 'gms'] },
-  { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm.' },
+  { sec: 'am', title: 'Seção e fissuração', cols: 2, keys: ['dl', 'wlim'], note: 'Seção de cálculo b = 100 cm e h = espessura do elemento. CAA I: 0,4 mm; CAA II e III: 0,3 mm; CAA IV: 0,2 mm (NBR 6118, Tabela 13.4). Se a caixa precisar ser estanque (reservatório ou contato permanente com água), adote um limite menor, usualmente 0,1 a 0,2 mm, conforme a norma específica de reservatórios.' },
   { sec: 'aa', title: 'Apoio elástico (Winkler)', cols: 2, keys: ['kv'], note: 'Molas sob a laje de fundo e a aba, só de compressão (as tracionadas são desligadas). Ordem de grandeza: argila mole 5.000–15.000; areia média 20.000–50.000; areia compacta 50.000–120.000 kN/m³. Use o valor do laudo geotécnico.' },
   { sec: 'aa', title: 'Sobrecarga e empuxo', cols: 2, keys: ['q'], check: { key: 'k0', text: 'Empuxo em repouso K<sub>0</sub> = 1 − sen φ (desmarcado: empuxo ativo K<sub>a</sub>, com a coesão)' }, note: 'q atua sobre a laje de topo, sobre a aba e nas paredes como K · q.' },
-  { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], note: 'ELU: cada ação com 1,0 ou γ<sub>g</sub> (permanentes) e 0 ou γ<sub>q</sub> (sobrecarga), nas 16 combinações. ELS frequente: g + ψ<sub>1</sub> q.' },
+  { sec: 'aa', title: 'Coeficientes', cols: 3, keys: ['gg', 'gq', 'psi1'], note: 'ELU: cada ação com 1,0 ou γ<sub>g</sub> (permanentes) e 0 ou γ<sub>q</sub> (sobrecarga), nas 16 combinações. ELS frequente: g + ψ<sub>1</sub> q. ψ<sub>1</sub> pela NBR 6118, Tabela 11.2: 0,4 sem predominância de equipamentos ou de concentração de pessoas; 0,6 com predominância; 0,7 em bibliotecas, arquivos, oficinas e garagens. Para tráfego de veículos, use o valor da norma de cargas móveis aplicável.' },
   { sec: 'emod', title: 'Malha', cols: 2, keys: ['hm'], note: 'Elementos de casca de até h; junto às ligações parede-laje a malha é refinada (até e/4). 10 cm é um bom padrão; malhas abaixo de 7,5 cm ficam lentas.' }
 ];
 const decOf = f => f.dec != null ? f.dec : (['phi', 'gc', 'gd', 'gsat', 'gw'].includes(f.key) ? 1 : 2);
@@ -1644,8 +1662,8 @@ function weightsTable(m) {
       ${m.vol.openArea > 0 ? sub('abertura (já descontada)', `${fmt(m.vol.openArea)} m² × ${fmt(p.es)} m = ${fmt(m.vol.openArea * p.es)} m³`, fmt(p.gc, 1), -m.W.open) : ''}
       ${m.vol.chimH > 0 ? row('c', 'Chaminé da abertura (e = e<sub>p</sub>, até o terreno)', `(${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} − ${fmt(m.vol.boE)} × ${fmt(m.vol.loE)}) m² × ${fmt(m.vol.chimH)} m = ${fmt(m.vol.chim)} m³`, fmt(p.gc, 1), m.W.chim, 'chamine') : ''}
       <tr class="grp"><td colspan="6">Solo</td></tr>
-      ${soilRows(m.soloTopo, m.vol.chimH > 0 ? 'Solo sobre a laje de topo (sem a área da chaminé)' : m.vol.openArea > 0 ? 'Solo sobre a laje de topo (sem a área da abertura)' : 'Solo sobre a laje de topo', 'soloTopo', true)}
-      ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', true)}
+      ${soilRows(m.soloTopo, m.vol.chimH > 0 ? 'Solo sobre a laje de topo (sem a área da chaminé)' : m.vol.openArea > 0 ? 'Solo sobre a laje de topo (sem a área da abertura)' : 'Solo sobre a laje de topo', 'soloTopo', false)}
+      ${soilRows(m.soloAba, 'Solo sobre a aba inferior', 'soloAba', false)}
       ${m.prisma.V > 0 ? row('s', `Prisma de solo (φ = ${fmt(p.phi, 1)}°, nas quatro faces)`, `h = ${fmt(m.prisma.h)} m, abertura h·tg φ = ${fmt(m.prisma.a)} m · V = ${fmt(m.prisma.V)} m³`, m.prisma.Vsat > 0 && m.prisma.Vdry > 0 ? `${fmt(p.gd, 1)} / ${fmt(m.prisma.gS, 1)}` : (m.prisma.Vsat > 0 ? fmt(m.prisma.gS, 1) : fmt(p.gd, 1)), m.prisma.W, 'prisma') : ''}
       ${m.prisma.V > 0 && m.prisma.Vdry > 0 ? sub('seco', `${fmt(m.prisma.Vdry)} m³`, fmt(p.gd, 1), m.prisma.Vdry * p.gd) : ''}
       ${m.prisma.V > 0 && m.prisma.Vsat > 0 ? sub('saturado, só a fração de solo (γ′)', `${fmt(m.prisma.Vsat)} m³`, fmt(m.prisma.gS, 1), m.prisma.Vsat * m.prisma.gS) : ''}
@@ -1672,11 +1690,10 @@ function subpressaoTable(m) {
   return `<table style="margin-top:18px">
     <thead><tr><th class="l">Subpressão${m.subC.rebaixo ? ' (etapa de operação)' : ' (vale para as duas etapas)'}</th><th class="l">Cálculo</th><th>γ (kN/m³)</th><th>Resultado</th></tr></thead>
     <tbody>
-      <tr class="grp"><td colspan="4">Área da subpressão: medidas externas das paredes, sem a aba</td></tr>
-      ${r('Largura externa B<sub>ext</sub>', `B + 2·e<sub>p</sub> = ${fmt(p.B)} + 2 × ${fmt(p.ep)}`, '—', `${fmt(m.Bext)} m`)}
-      ${r('Comprimento externo L<sub>ext</sub>', `L + 2·e<sub>p</sub> = ${fmt(p.L)} + 2 × ${fmt(p.ep)}`, '—', `${fmt(m.Lext)} m`)}
-      ${r('Área A', `B<sub>ext</sub> × L<sub>ext</sub> = ${fmt(m.Bext)} × ${fmt(m.Lext)}`, '—', `${fmt(sb.A)} m²`, true)}
-      ${sub('fora da área', `aba b<sub>a</sub> = ${fmt(p.ba)} m (laje inferior ${fmt(m.Binf)} × ${fmt(m.Linf)} m = ${fmt(m.vol.infArea)} m²)`)}
+      <tr class="grp"><td colspan="4">Área da subpressão: toda a laje inferior, com a aba</td></tr>
+      ${r('Largura B<sub>inf</sub>', `B + 2·e<sub>p</sub> + 2·b<sub>a</sub> = ${fmt(p.B)} + 2 × ${fmt(p.ep)} + 2 × ${fmt(p.ba)}`, '—', `${fmt(m.Binf)} m`)}
+      ${r('Comprimento L<sub>inf</sub>', `L + 2·e<sub>p</sub> + 2·b<sub>a</sub> = ${fmt(p.L)} + 2 × ${fmt(p.ep)} + 2 × ${fmt(p.ba)}`, '—', `${fmt(m.Linf)} m`)}
+      ${r('Área A', `B<sub>inf</sub> × L<sub>inf</sub> = ${fmt(m.Binf)} × ${fmt(m.Linf)}`, '—', `${fmt(sb.A)} m²`, true)}
       <tr class="grp"><td colspan="4">Coluna d'água e esforço de subpressão</td></tr>
       ${r('Coluna d\'água h', `z<sub>w</sub> − z<sub>base</sub> = (${fmt(p.zw)}) − (${fmt(z.base)})${sb.h === 0 ? ' → sem coluna positiva, h = 0' : ''}`, '—', `${fmt(sb.h)} m`)}
       ${r('Volume da coluna A × h', `${fmt(sb.A)} × ${fmt(sb.h)}`, '—', `${fmt(sb.A * sb.h)} m³`)}
@@ -1728,7 +1745,7 @@ function summaryHtml(m) {
     ${it('Externas B<sub>ext</sub> × L<sub>ext</sub>', `${fmt(m.Bext)} × ${fmt(m.Lext)} m`)}
     ${it('Laje inferior com aba B<sub>inf</sub> × L<sub>inf</sub>', `${fmt(m.Binf)} × ${fmt(m.Linf)} m`)}
     ${it('Altura total', `${fmt(m.Htot)} m`)}
-    ${it('Área de subpressão A = B<sub>ext</sub>·L<sub>ext</sub>', `${fmt(m.sub.A)} m²`)}
+    ${it('Área de subpressão A = B<sub>inf</sub>·L<sub>inf</sub>', `${fmt(m.sub.A)} m²`)}
     ${it('Abertura na laje de topo b<sub>o</sub> × l<sub>o</sub>', m.vol.openArea > 0 ? `${fmt(Math.min(p.bo, m.Bext))} × ${fmt(Math.min(p.lo, m.Lext))} m (${fmt(m.vol.openArea)} m²)` : 'sem abertura')}
     ${it('Chaminé (externa × altura)', m.vol.chimH > 0 ? `${fmt(m.vol.boE + 2 * p.ep)} × ${fmt(m.vol.loE + 2 * p.ep)} m, h = ${fmt(m.vol.chimH)} m` : 'sem chaminé')}
     <h3>Espessuras</h3>
@@ -1749,7 +1766,7 @@ function warningsFor(m) {
   if (z.topTop > 0) w.push('A laje de topo está acima do terreno: não há cobertura de solo sobre ela.');
   if (z.botTop >= 0) w.push('A laje inferior está acima do terreno: não há solo sobre a aba.');
   if (p.zw > 0) w.push('O nível d\'água está acima do terreno. O solo abaixo dele é tratado como saturado.');
-  if (p.zw > z.topTop) w.push('O nível d\'água está acima da face superior da laje de topo. O solo saturado sobre ela entra com γ′ = γsat − γw, pois a água já é considerada até o topo; a pressão da água sobre a laje não é somada.');
+  if (p.zw > z.topTop) w.push('O nível d\'água está acima da face superior da laje de topo. O solo saturado sobre ela entra com γsat, que já inclui o peso da água sobre a laje.');
   if (m.sub.h === 0) w.push('O nível d\'água está na face inferior da laje inferior ou abaixo dela: subpressão igual a zero.');
   if (p.gsat < p.gd) w.push('O peso específico do solo saturado está menor que o do solo seco. Confira os dados.');
   if (p.bo > m.Bext || p.lo > m.Lext) w.push('A abertura é maior que a laje de topo e foi limitada às dimensões externas da caixa.');
@@ -1935,7 +1952,7 @@ function memorialDocXml(m, imgs) {
   const hoje = new Date().toLocaleDateString('pt-BR');
   const title = wPar(wRun('MEMÓRIA DE CÁLCULO · VERIFICAÇÃO À FLUTUAÇÃO', { b: true, sz: 22, color: '1b2830' }), { after: 10 }) +
     wPar(wRun(`Caixa enterrada de concreto armado, ${fmt(p.B)} × ${fmt(p.L)} m internos, altura livre ${fmt(p.H)} m · ${hoje}`, { sz: 14, color: '566872' }), { after: 60 });
-  const foot = wPar(wRun('Cálculo preliminar. FS = R ÷ U; critério FS > ' + fmt(p.fsmin, 2) + '. Subpressão em A = Bext × Lext (sem aba), u = γw · (zw − cota da base). Resistência R = Σ (peso ÷ divisor). Solo submerso com γ′ = γsat − γw; sem pressão da água sobre a laje de topo. Desenho esquemático; o diagrama de empuxo não é resultado de dimensionamento.', { sz: 11, color: '566872', i: true }), { before: 50 });
+  const foot = wPar(wRun('Cálculo preliminar. FS = R ÷ U; critério FS > ' + fmt(p.fsmin, 2) + '. Subpressão em A = Binf × Linf (toda a laje inferior, com a aba), u = γw · (zw − cota da base). Resistência R = Σ (peso ÷ divisor). Solo sobre a laje e a aba com γsat abaixo do N.A.; prisma de solo com γ′. Etapa construtiva com escavação drenada. Desenho esquemático; o diagrama de empuxo não é resultado de dimensionamento.', { sz: 11, color: '566872', i: true }), { before: 50 });
   const sect = '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="680" w:right="680" w:bottom="620" w:left="680" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr>';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${title}${fsTbl}${imgs2}${wPar('', { after: 40 })}${calcTbl}${wPar('', { after: 40 })}${inTbl}${foot}${sect}</w:body></w:document>`;
 }
@@ -2000,7 +2017,8 @@ function mapComps(s) {
 }
 const CASES = [
   [15, 'ELU: todas as ações majoradas'], [19, 'ELS frequente (g + ψ₁ q)'], [20, 'Característica (g + q)'],
-  [21, 'Só permanentes verticais (linear)'], [22, 'Só empuxo e água (linear)'], [23, 'Só sobrecarga vertical (linear)'], [24, 'Só sobrecarga lateral (linear)']
+  [21, 'Só permanentes verticais (linear)'], [22, 'Só empuxo e água (linear)'], [23, 'Só sobrecarga vertical (linear)'], [24, 'Só sobrecarga lateral (linear)'],
+  [28, 'Etapa construtiva: ELU (peso e subpressão majorados)'], [29, 'Etapa construtiva: característica']
 ];
 function surfCoords(s, q) { return s === 'top' || s === 'bot' ? [q[0], q[1]] : s === 'wx' ? [q[1], q[2]] : [q[0], q[2]]; }
 // sinais que trocam ao espelhar em h (1ª coordenada) e em v (2ª, só lajes)
@@ -2391,7 +2409,9 @@ async function buildMemorialFull(D) {
     ['Laje de fundo: peso próprio', '', num(aux.qbSelf), 'permanente'],
     ['Subpressão na base (para cima)', `u em ${fz(z.base)} m`, num(aux.uBase), 'permanente'],
     ...(p.ba > 0 ? [['Solo sobre a aba', `σ_v em ${fz(z.botTop)} m`, num(aux.qAba), 'permanente']] : []),
-    ['Paredes: peso próprio (kN/m de altura)', '', num(aux.wallW), 'permanente'],
+    ['Paredes: peso próprio (kN/m de altura)', '', num(aux.wallWreal || aux.wallW), 'permanente'],
+    { span: `Etapa construtiva (sem laje de topo, escavação drenada)` },
+    ['Subpressão na base (N.A. da etapa)', `z_w = ${fz(aux.zwc)} m`, num(aux.uC), 'permanente'],
     ['Sobrecarga no terreno q', 'topo e aba', num(p.q), 'variável'],
     { span: `Pressão lateral nas paredes (kPa), ${aux.k0 ? 'K_0 = 1 − sen φ' : 'K_a'} = ${fmt(aux.K, 3)}` },
     ['Eixo da laje de topo', `z = ${fz(-aux.dA)} m`, num(pg(aux.dA)), 'solo + água'],
@@ -2422,7 +2442,7 @@ async function buildMemorialFull(D) {
     });
   });
   body.push(table([1500, 2406, 1200, 1200, 1300, 1300, 1300], ['Armadura', 'Face tracionada', 'M_d (kN·m/m)', 'N_d (kN/m)', 'M_{d,máx}', 'M_ser', 'V_Sd (kN/m)'], envRows));
-  body.push(txt('Envoltória das 16 combinações ELU nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
+  body.push(txt('Envoltória das 16 combinações ELU da operação e das 4 da etapa construtiva nas regiões entre as faces dos apoios. M_d e N_d são os da seção que exige mais armadura (N_d + = tração); M_ser vem da combinação frequente. Na laje de fundo, a região inclui a aba.', { color: C.muted, sz: 16 }));
 
   /* ===== 3. Armaduras ===== */
   body.push(H1('3. Dimensionamento das armaduras (NBR 6118)'));
@@ -2547,9 +2567,9 @@ function esfData(m, A, key, dir) {
     return {
       unit: 'kPa', rows: [
         ['Laje de topo: peso próprio', `e<sub>s</sub> = ${fmt(p.es)} m`, A.qtSelf], ['Laje de topo: solo', A.cover > 0 ? `${fmt(A.cover)} m de cobertura` : 'sem cobertura', A.qtSoil],
-        ['Paredes: peso próprio (kN/m de altura)', `e<sub>p</sub> = ${fmt(p.ep)} m`, A.wallW], ['Laje de fundo: peso próprio', `e<sub>i</sub> = ${fmt(p.ei)} m`, A.qbSelf],
+        ['Paredes: peso próprio (kN/m de altura)', `e<sub>p</sub> = ${fmt(p.ep)} m`, A.wallWreal || A.wallW], ['Laje de fundo: peso próprio', `e<sub>i</sub> = ${fmt(p.ei)} m`, A.qbSelf],
         ...(p.ba > 0 ? [['Aba: solo sobre ela', A.dAba > 0 ? `${fmt(A.dAba)} m de solo` : 'sem cobertura', A.qAbaSoil]] : [])],
-      sums: [R('Laje de topo', fmt(A.qtg * Sext, 2), 'kN/m'), R('Duas paredes', fmt(2 * A.wallW * A.Hc, 2), 'kN/m'), R('Laje de fundo com aba', fmt(A.qbSelf * Sinf, 2), 'kN/m'), ...(p.ba > 0 ? [R('Solo sobre as abas', fmt(A.qAbaSoil * 2 * p.ba, 2), 'kN/m')] : [])],
+      sums: [R('Laje de topo', fmt(A.qtg * Sext, 2), 'kN/m'), R('Duas paredes (altura livre H)', fmt(2 * (A.wallWreal || A.wallW) * p.H, 2), 'kN/m'), R('Laje de fundo com aba', fmt(A.qbSelf * Sinf, 2), 'kN/m'), ...(p.ba > 0 ? [R('Solo sobre as abas', fmt(A.qAbaSoil * 2 * p.ba, 2), 'kN/m')] : [])],
       txt: `Cargas permanentes verticais: peso próprio (γ<sub>c</sub> = ${fmt(p.gc, 1)} kN/m³) e solo com a tensão vertical total (seco acima do N.A., saturado abaixo). Na laje de topo, a faixa sobre as paredes (meia espessura além do eixo) entra como carga de linha no topo das paredes. Com chaminé, o peso dela substitui o solo na faixa em volta da abertura.` + splitNote
     };
   }
@@ -2663,7 +2683,7 @@ function esfFigure(m, A, key, dir) {
     }
     band(-Sint / 2, Sint / 2, z.botTop, A.qbSelf, A.qbSelf * kk, 'accent', true);
     o.push(lab(W / 2, Y(z.botTop) - A.qbSelf * kk - 8, `pp laje de fundo ${fmt(A.qbSelf, 1)} kPa`, 'middle', 'var(--accent)'));
-    o.push(`<text class="halo" transform="translate(${f1(X(-Sext / 2 + p.ep / 2) + 4)} ${f1((Y(z.topBot) + Y(z.botTop)) / 2)}) rotate(-90)" text-anchor="middle" font-size="11" style="fill:var(--ink)">pp ${fmt(A.wallW, 1)} kN/m</text>`);
+    o.push(`<text class="halo" transform="translate(${f1(X(-Sext / 2 + p.ep / 2) + 4)} ${f1((Y(z.topBot) + Y(z.botTop)) / 2)}) rotate(-90)" text-anchor="middle" font-size="11" style="fill:var(--ink)">pp ${fmt(A.wallWreal || A.wallW, 1)} kN/m</text>`);
   }
   if (key === 'reac') {
     const c = D.contact, mx = Math.max(1e-9, ...c.map(q => q.p)), kk = 70 / mx, yb = Y(z.base);
@@ -2905,7 +2925,7 @@ if (typeof document !== 'undefined') {
   const fe = { key: null, res: null, aux: null, busyKey: null, err: null };
   const FE_SYNC = FEengine();
   try {
-    const srcW = FEengine.toString() + '\nconst FE = FEengine();\nonmessage = e => { try { postMessage({ id: e.data.id, r: FE.analyze(e.data.inp) }); } catch (err) { postMessage({ id: e.data.id, error: String(err && err.message || err) }); } };';
+    const srcW = FEengine.toString() + '\nconst FE = FEengine();\nonmessage = e => { try { const q = e.data.inp; postMessage({ id: e.data.id, r: Array.isArray(q) ? q.map(x => FE.analyze(x)) : FE.analyze(q) }); } catch (err) { postMessage({ id: e.data.id, error: String(err && err.message || err) }); } };';
     worker = new Worker(URL.createObjectURL(new Blob([srcW], { type: 'text/javascript' })));
     worker.onerror = () => { worker = null; fe.busyKey = null; if (lastM) renderFE(lastM); };
   } catch (e) { worker = null; }
@@ -2923,12 +2943,27 @@ if (typeof document !== 'undefined') {
       const done = r => {
         if (id !== reqId) return;
         fe.busyKey = null;
+        // operação + etapa construtiva: junta os resultados (mesma malha) e marca as combinações ELU e ELS
+        if (Array.isArray(r)) {
+          const [ro, rc] = r, bad = r.find(x => !x || x.error);
+          if (bad) r = bad;
+          else {
+            const n0 = ro.results.length, nc = rc.results.length;
+            r = Object.assign({}, ro, {
+              results: ro.results.concat(rc.results),
+              // combinações da etapa construtiva em que a caixa flutua não entram na envoltória (aviso na tela)
+              eluIdx: Array.from({ length: 16 }, (_, k) => k).concat(Array.from({ length: nc - 1 }, (_, k) => k).filter(k => !rc.results[k].floated).map(k => n0 + k)),
+              elsIdx: [16, 17, 18, 19].concat(rc.results[nc - 1].floated ? [] : [n0 + nc - 1]), stats: Object.assign({}, ro.stats, { ms: ro.stats.ms + rc.stats.ms }),
+              floatedC: rc.results.some(x => x.floated), liftedC: Math.max(...rc.results.map(x => x.lifted || 0))
+            });
+          }
+        }
         if (!r || r.error) { fe.err = (r && r.error) || 'Falha na análise.'; setStatus('err', 'A análise não convergiu: ' + fe.err); return; }
         fe.key = key; fe.res = r; fe.aux = aux; fe.err = null;
         if (lastM) drawFE(lastM);
       };
       if (worker) { worker.onmessage = e => { if (e.data.id === id) done(e.data.r || { error: e.data.error }); }; worker.postMessage({ id, inp }); }
-      else setTimeout(() => { let r; try { r = FE_SYNC.analyze(inp); } catch (err) { r = { error: String(err && err.message || err) }; } done(r); }, 30);
+      else setTimeout(() => { let r; try { r = Array.isArray(inp) ? inp.map(x => FE_SYNC.analyze(x)) : FE_SYNC.analyze(inp); } catch (err) { r = { error: String(err && err.message || err) }; } done(r); }, 30);
     }, 350);
   }
   function renderFE(m) {
@@ -2958,6 +2993,8 @@ if (typeof document !== 'undefined') {
     const w = [];
     if (A.floated) w.push('Em alguma combinação ELU todas as molas ficaram tracionadas: a caixa flutua. Confira a aba Flutuação; os esforços dessa combinação não são confiáveis.');
     else if (A.lifted > 0) w.push(`Em alguma combinação ELU parte da laje de fundo tende a subir: ${fmt(A.lifted, 0)} de ${fmt(A.nSpring, 0)} molas foram desligadas (o solo não resiste à tração).`);
+    if (A.floatedC) w.push('Na etapa construtiva (sem laje de topo e sem solo), a caixa flutua em alguma combinação ELU: confira a aba Flutuação; os esforços dessa etapa não são confiáveis.');
+    else if (A.liftedC > 0) w.push(`Na etapa construtiva, parte da laje de fundo perde o contato com o solo em alguma combinação ELU (${fmt(A.liftedC, 0)} molas desligadas).`);
     if (p.hm < 7.5) w.push('Malha fina: o cálculo pode levar alguns segundos a cada alteração.');
     el('esf-warns').innerHTML = w.map(t => `<p>${t}</p>`).join('');
     el('fe-sum').innerHTML = feSummaryHtml(r, A);

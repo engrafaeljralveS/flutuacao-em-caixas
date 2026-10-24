@@ -36,15 +36,33 @@ const ok = (c, msg) => console.log((c ? '  OK   ' : '  FALHA ') + msg);
   ok(Math.abs(-wallMid / 3.3333 - 1) < 0.02, `meio da parede ${(-wallMid).toFixed(3)} (ref. 3,333)`);
   ok(Math.abs(wallFace / 0.7167 - 1) < 0.03, `parede na face da laje ${wallFace.toFixed(3)} (ref. 0,717)`);
 }
-// 3) Caixa padrão: equilíbrio, convergência e dimensionamento
+// 3) Flutuação: conferência manual (aba na subpressão, solo sobre a laje e a aba com γsat, prisma com γ′)
+{
+  const m = Calc.compute(Object.assign({}, DEFAULTS));
+  const Binf = 2.9, Linf = 3.3, Aaba = Binf * Linf - 2.5 * 2.9, U = 10 * 1.0 * Binf * Linf;
+  const tg = Math.tan(Math.PI / 6), h = 2.8, ring = t => 2 * t * tg * (Binf + Linf) + 4 * (t * tg) ** 2;
+  let Wp = 0; const n = 20000; for (let i = 0; i < n; i++) { const t = (i + 0.5) * h / n; Wp += ring(t) * h / n * (t < 0.8 ? 9 : 17); }
+  const Rc = (105 + 47.85) / 1.1, Ro = (105 + 47.85 + 36.25 + 2.5 * 2.9 * 0.5 * 17 + Aaba * (2.0 * 17 + 0.8 * 19)) / 1.1 + Wp / 1.3;
+  console.log('3) Flutuação');
+  ok(Math.abs(m.sub.U - U) < 1e-6, `subpressão em toda a laje inferior: U = ${m.sub.U.toFixed(2)} kN (manual ${U.toFixed(2)})`);
+  ok(Math.abs(m.constr.FS - Rc / U) < 1e-3, `FS construtiva ${m.constr.FS.toFixed(3)} (manual ${(Rc / U).toFixed(3)})`);
+  ok(Math.abs(m.oper.FS - Ro / U) < 2e-3, `FS operação ${m.oper.FS.toFixed(3)} (manual ${(Ro / U).toFixed(3)})`);
+}
+// 4) Caixa padrão: equilíbrio (operação e etapa construtiva), convergência e dimensionamento
 {
   const m = Calc.compute(Object.assign({}, DEFAULTS));
   const { inp, aux } = Arm.feInput(m);
-  const r = FE.analyze(inp), A = Arm.post(m, r, aux);
-  console.log(`3) Caixa padrão: ${r.stats.nElem} elementos, ${r.stats.nEq} equações, ${r.stats.ms} ms`);
-  ok(Math.abs(A.R - A.Fz) / A.Fz < 1e-6, `equilíbrio: reações ${A.R.toFixed(2)} kN = cargas ${A.Fz.toFixed(2)} kN`);
-  const inp2 = JSON.parse(JSON.stringify(inp)); inp2.geo.h = 0.075;
-  const A2 = Arm.post(m, FE.analyze(inp2), aux);
+  const run = q => { const ro = FE.analyze(q[0]), rc = FE.analyze(q[1]), n0 = ro.results.length, nc = rc.results.length;
+    return { ro, rc, r: Object.assign({}, ro, { results: ro.results.concat(rc.results), eluIdx: [...Array(16).keys()].concat([...Array(nc - 1).keys()].map(k => n0 + k)), elsIdx: [16, 17, 18, 19, n0 + nc - 1] }) }; };
+  const R1 = run(inp), A = Arm.post(m, R1.r, aux);
+  console.log(`4) Caixa padrão: ${R1.ro.stats.nElem} elementos, ${R1.ro.stats.nEq} equações, ${R1.ro.stats.ms + R1.rc.stats.ms} ms (duas etapas)`);
+  ok(Math.abs(A.R - A.Fz) / A.Fz < 1e-6, `equilíbrio, operação: reações ${A.R.toFixed(2)} kN = cargas ${A.Fz.toFixed(2)} kN`);
+  const cc = R1.rc.results[R1.rc.results.length - 1];
+  ok(Math.abs(cc.R - cc.Fz) / Math.abs(cc.Fz) < 1e-6, `equilíbrio, etapa construtiva: reações ${cc.R.toFixed(2)} kN = cargas ${cc.Fz.toFixed(2)} kN`);
+  const wall = 2 * (2.3 + 2.7) * 0.2 * 25 * 2.1, top = 13.5 * 2.3 * 2.7 + 13.5 * 0.1 * 2 * (2.3 + 2.7);
+  ok(Math.abs(cc.Fz - (wall + 5 * 9.57 - 10 * 9.57)) < 0.5, `cargas da etapa construtiva = paredes (altura H) + laje de fundo − subpressão = ${(wall + 5 * 9.57 - 10 * 9.57).toFixed(2)} kN`);
+  const q2 = JSON.parse(JSON.stringify(inp)); q2.forEach(x => { x.geo.h = 0.075; });
+  const A2 = Arm.post(m, run(q2).r, aux);
   const dif = Math.max(...A.rows.map((x, i) => Math.abs(x.Mmax - A2.rows[i].Mmax) / Math.max(1, A2.rows[i].Mmax)));
   ok(dif < 0.05, `convergência 10 × 7,5 cm: maior diferença nos momentos de dimensionamento ${(dif * 100).toFixed(1)} %`);
   A.rows.forEach(x => console.log('     ' + x.key.padEnd(10), 'Md', x.Md.toFixed(2).padStart(6), 'Nd', x.Nd.toFixed(1).padStart(6), 'Ms', x.Ms.toFixed(2).padStart(6), 'As,nec', x.AsReq.toFixed(2), '→ ø', x.sug.phi, 'c/', x.sug.s));
